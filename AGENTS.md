@@ -106,16 +106,27 @@ the shipped scripts end to end instead of handing back manual steps:
    (Windows) or `scripts/setup-translate.sh --check-only`. Install missing tools with the printed
    winget/apt/brew hints; package installs that need elevation need the owner’s OK once, then
    proceed.
-2. Install: rerun without the check flag. Expect 10-30 minutes for the LTEngine build and a
+2. GPU and model recommendation: before the long install, read the GPU/VRAM lines from the
+   preflight output, or query directly (`nvidia-smi --query-gpu=name,memory.total
+   --format=csv,noheader` for NVIDIA; `system_profiler SPDisplaysDataType` on macOS;
+   `Get-CimInstance Win32_VideoController` or `lspci | grep -i vga` as fallbacks). Tell the
+   owner the detected GPU and which gemma3 tier it maps to, and why: 27b ~18 GB VRAM (best
+   quality), 12b ~10 GB, 4b ~4 GB (default sweet spot), 1b ~2 GB (last resort); leave ~1 GB
+   headroom for the desktop. The wizard picks this automatically; surface it, mention the
+   override (`-Model` / `--model`), then proceed with the recommendation unless the owner
+   objects. If the machine has no usable discrete GPU (<2 GB VRAM), pause and set CPU-only
+   expectations before installing.
+
+3. Install: rerun without the check flag. Expect 10-30 minutes for the LTEngine build and a
    one-time model download sized by detected VRAM. A failed model download resumes on the next
    run.
-3. Engine: `scripts/start-translate.ps1` / `scripts/start-translate.sh`. Success is the script
+4. Engine: `scripts/start-translate.ps1` / `scripts/start-translate.sh`. Success is the script
    printing "Translation engine ready on 127.0.0.1:5050".
-4. Client: `cargo run --release` from the repo root. On Windows, if the build cannot find
+5. Client: `cargo run --release` from the repo root. On Windows, if the build cannot find
    link.exe, clang or NASM, set up the native environment a working Windows build needs (MSVC
    vcvars64, `LIBCLANG_PATH` pointing at LLVM, NASM in `PATH`) before installing extra
    toolchains.
-5. Report engine health, the chosen model and any interactive step left for the owner. Login,
+6. Report engine health, the chosen model and any interactive step left for the owner. Login,
    real messages and microphone use stay owner-controlled: never automate Discord sign-in and
    never send live messages as a verification step.
 
