@@ -700,6 +700,10 @@ pub enum AppAction {
 	RequestGifs {
 		query: Option<String>,
 	},
+	RequestTranslation {
+		text: String,
+		target: String,
+	},
 	SetMessagingSettings {
 		change: MessagingSettingsChange,
 	},
@@ -1668,7 +1672,8 @@ impl AppAction {
 			| Self::RequestArchives { .. }
 			| Self::RequestMemberSearch { .. }
 			| Self::RequestProfile { .. }
-			| Self::RequestGifs { .. } => Capability::DataQueries,
+			| Self::RequestGifs { .. }
+			| Self::RequestTranslation { .. } => Capability::DataQueries,
 			Self::SetMessagingSettings { .. } => Capability::MessagingSettings,
 			Self::SetGuildFolders { .. } => Capability::GuildFolders,
 			Self::OpenJoinServer { .. }
@@ -1927,6 +1932,10 @@ impl AppAction {
 				if let Some(query) = query {
 					label(query, 1024)?;
 				}
+			}
+			Self::RequestTranslation { text, target } => {
+				action_text(text, 8192, true, false)?;
+				label(target, 16)?;
 			}
 			Self::SetMessagingSettings { change } => change.validate()?,
 			Self::SetGuildFolders {

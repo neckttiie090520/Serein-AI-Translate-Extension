@@ -670,6 +670,10 @@ pub enum AppAction {
 	RequestGifs {
 		query: Option<String>,
 	},
+	RequestTranslation {
+		text: String,
+		target: String,
+	},
 	SetMessagingSettings {
 		change: MessagingSettingsChange,
 	},

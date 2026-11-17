@@ -1444,3 +1444,37 @@ fn preference_snapshots_are_bounded_and_old_hosts_can_omit_them() {
 		);
 	}
 }
+
+#[test]
+fn request_translation_roundtrips_and_validates_bounds() {
+	let action = AppAction::RequestTranslation {
+		text: "hello there".into(),
+		target: "th".into(),
+	};
+	let json = serde_json::to_string(&action).expect("serialize");
+	assert!(json.contains("request_translation"));
+	let decoded: AppAction = serde_json::from_str(&json).expect("deserialize");
+	assert_eq!(decoded, action);
+	assert!(action.validate().is_ok());
+
+	let sdk_form: Result<sdk::AppAction, _> = serde_json::from_str(&json);
+	assert!(sdk_form.is_ok());
+
+	let oversized = AppAction::RequestTranslation {
+		text: "a".repeat(8193 * 4),
+		target: "en".into(),
+	};
+	assert!(oversized.validate().is_err());
+
+	let empty = AppAction::RequestTranslation {
+		text: "   ".into(),
+		target: "en".into(),
+	};
+	assert!(empty.validate().is_err());
+
+	let bad_target = AppAction::RequestTranslation {
+		text: "hi".into(),
+		target: "e".repeat(17),
+	};
+	assert!(bad_target.validate().is_err());
+}

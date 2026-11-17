@@ -4,6 +4,7 @@
 members = [
 	"sdk",
 	"plugins/message-delete-protector",
+	"plugins/local-translate",
 	"plugins/custom-rpc",
 	"plugins/api-proxy",
 	"plugins/offline-composer-tools",

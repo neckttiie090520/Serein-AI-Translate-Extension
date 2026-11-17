@@ -1,0 +1,34 @@
+{
+  "api_version": 1,
+  "id": "local-translate",
+  "name": "Local Translate",
+  "version": "1.0.0",
+  "author": "Kai",
+  "license": "MIT OR Apache-2.0",
+  "source": "https://github.com/ViceVerse-cz/Serein",
+  "kind": "plugin",
+  "capabilities": [
+    "selected_message",
+    "composer",
+    "storage",
+    "data_queries",
+    "clipboard_write"
+  ],
+  "actions": [
+    {
+      "id": "translate",
+      "label": "Translate with the local service",
+      "surface": "message"
+    },
+    {
+      "id": "translate-draft",
+      "label": "Translate the draft with the local service",
+      "surface": "composer"
+    },
+    {
+      "id": "panel",
+      "label": "Open local translation",
+      "surface": "panel"
+    }
+  ]
+}
