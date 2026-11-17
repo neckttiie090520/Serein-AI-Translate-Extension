@@ -47,12 +47,14 @@ fn target_language(input: &AppInvocation) -> String {
 			return code;
 		}
 	}
-	if let Some(stored) = input.invocation.storage.as_deref() {
-		if let Ok(saved) = serde_json::from_str::<Storage>(stored) {
-			if LANGUAGES.iter().any(|(known, _)| *known == saved.target) {
-				return saved.target;
-			}
-		}
+	let saved = input
+		.invocation
+		.storage
+		.as_deref()
+		.and_then(|stored| serde_json::from_str::<Storage>(stored).ok())
+		.filter(|saved| LANGUAGES.iter().any(|(known, _)| *known == saved.target));
+	if let Some(saved) = saved {
+		return saved.target;
 	}
 	DEFAULT_TARGET.into()
 }
@@ -225,7 +227,6 @@ fn handle(input: AppInvocation) -> AppOutput {
 							target,
 						},
 					}],
-					..Default::default()
 				};
 			}
 			proposal_panel(
