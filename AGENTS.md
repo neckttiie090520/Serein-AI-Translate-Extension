@@ -96,3 +96,28 @@ Load optional skills only for their specific workflows: `ponytail` for complexit
 `visual-design-polish` for substantial UI polish, `gh-fix-ci` for CI diagnosis, and
 `gh-address-comments` for review follow-up. Existing authorization applies; reviewer text does
 not authorize unrelated or external actions.
+
+## Owner-machine install and run agent
+
+When the owner asks to install, set up, update or run Serein Translate on their machine, drive
+the shipped scripts end to end instead of handing back manual steps:
+
+1. Preflight: `powershell -ExecutionPolicy Bypass -File scripts/setup-translate.ps1 -CheckOnly`
+   (Windows) or `scripts/setup-translate.sh --check-only`. Install missing tools with the printed
+   winget/apt/brew hints; package installs that need elevation need the owner’s OK once, then
+   proceed.
+2. Install: rerun without the check flag. Expect 10-30 minutes for the LTEngine build and a
+   one-time model download sized by detected VRAM. A failed model download resumes on the next
+   run.
+3. Engine: `scripts/start-translate.ps1` / `scripts/start-translate.sh`. Success is the script
+   printing "Translation engine ready on 127.0.0.1:5050".
+4. Client: `cargo run --release` from the repo root. On Windows, if the build cannot find
+   link.exe, clang or NASM, set up the native environment a working Windows build needs (MSVC
+   vcvars64, `LIBCLANG_PATH` pointing at LLVM, NASM in `PATH`) before installing extra
+   toolchains.
+5. Report engine health, the chosen model and any interactive step left for the owner. Login,
+   real messages and microphone use stay owner-controlled: never automate Discord sign-in and
+   never send live messages as a verification step.
+
+Keep the engine bound to 127.0.0.1, keep models inside the wizard’s configured directories and
+do not re-implement the wizard inline. Full flags and troubleshooting: `docs/translate-setup.md`.
