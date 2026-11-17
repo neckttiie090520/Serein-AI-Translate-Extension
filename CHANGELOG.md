@@ -21,4 +21,11 @@ are fork milestones, not upstream releases.
   without gaining network capability.
 - Project identity and documentation: logo, banner, architecture and UX preview art; README
   with cloud-vs-local comparison, measured latency benchmarks and a full setup guide.
+- One-command install wizard (`scripts/setup-translate.ps1` / `.sh`, `start-translate`
+  launchers): prerequisite checks, GPU VRAM detection with an auto-picked unsloth GGUF
+  model (gemma3 1b/4b/12b/27b), resumable download, LTEngine translate-context patch,
+  and config written to the platform data directory.
+- Discoverability and agent setup: `llms.txt` (llmstxt.org format), README FAQ matching
+  search intent, keyword-rich media alt text, expanded repository topics; AGENTS.md and
+  CLAUDE.md owner-machine install-and-run playbook with GPU-aware model recommendation.
 
