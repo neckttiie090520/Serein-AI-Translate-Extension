@@ -1,0 +1,12 @@
+Serein AI Translate Extension
+=============================
+
+This project is a fork of Serein (https://github.com/ViceVerse-cz/Serein),
+Copyright the Serein authors, licensed under Apache-2.0 (and MIT where dual
+licensed). The translation layer added by this fork is likewise Apache-2.0.
+
+This fork is designed to run alongside LTEngine, the LibreTranslate project's
+llama.cpp inference server (AGPL-3.0). LTEngine is invoked over HTTP as a
+separate process and is not linked, bundled or redistributed here. Model
+weights (gemma3) are downloaded by the user directly from Hugging Face under
+Google's model license.

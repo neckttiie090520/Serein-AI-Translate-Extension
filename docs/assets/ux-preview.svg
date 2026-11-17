@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 720" width="1180" height="720" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="hdr2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7C5CFF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+  <rect width="1180" height="720" fill="#0E0E1A"/>
+  <rect x="0" y="0" width="1180" height="4" fill="url(#hdr2)"/>
+  <text x="40" y="52" fill="#FFFFFF" font-size="26" font-weight="700">The experience — inline, one click, zero cloud</text>
+
+  <!-- chat window -->
+  <g>
+    <rect x="40" y="80" rx="14" width="700" height="600" fill="#141428" stroke="#26264A"/>
+    <!-- header -->
+    <rect x="40" y="80" rx="14" width="700" height="52" fill="#191934"/>
+    <rect x="64" y="94" rx="6" width="28" height="24" fill="#7C5CFF" opacity="0.6"/>
+    <text x="104" y="113" fill="#FFFFFF" font-size="17" font-weight="600"># general</text>
+    <text x="700" y="113" fill="#6B6B93" font-size="14">Serein</text>
+
+    <!-- message 1: incoming EN -->
+    <rect x="64" y="152" rx="18" width="34" height="34" fill="#F59E0B" opacity="0.85"/>
+    <text x="110" y="166" fill="#FBBF24" font-size="15" font-weight="700">Alex</text>
+    <text x="158" y="166" fill="#6B6B93" font-size="12">Today at 14:02</text>
+    <text x="110" y="188" fill="#E4E4F2" font-size="15">are you coming to the meetup tomorrow?</text>
+
+    <!-- inline translation -->
+    <text x="110" y="216" fill="#9DA3E8" font-size="15">พวกเราจะมาที่งานมีตอัพพรุ่งนี้ไหม</text>
+    <text x="110" y="238" fill="#6B6B93" font-size="12.5">Translated from English · Thai</text>
+
+    <!-- message 2 -->
+    <rect x="64" y="272" rx="18" width="34" height="34" fill="#10B981" opacity="0.85"/>
+    <text x="110" y="286" fill="#34D399" font-size="15" font-weight="700">Mina</text>
+    <text x="152" y="286" fill="#6B6B93" font-size="12">Today at 14:03</text>
+    <text x="110" y="308" fill="#E4E4F2" font-size="15">I'll bring the slides!</text>
+    <text x="110" y="336" fill="#9DA3E8" font-size="15">ฉันจะเอาสไลด์มาด้วย!</text>
+    <text x="110" y="358" fill="#6B6B93" font-size="12.5">Translated from English · Thai</text>
+
+    <!-- hover toolbar -->
+    <g>
+      <rect x="470" y="380" rx="16" width="246" height="36" fill="#1E1E3C" stroke="#34346A"/>
+      <text x="486" y="403" fill="#8B8BB0" font-size="14">❤ 😂</text>
+      <circle cx="540" cy="398" r="10" fill="#7C5CFF" opacity="0.9"/>
+      <text x="533" y="403" fill="#FFFFFF" font-size="12">⇄</text>
+      <text x="558" y="403" fill="#A5F3FC" font-size="13">Translate</text>
+      <text x="628" y="403" fill="#8B8BB0" font-size="13">✕ hide</text>
+    </g>
+
+    <!-- composer with preview -->
+    <rect x="64" y="560" rx="12" width="652" height="44" fill="#191934" stroke="#2E2E5C"/>
+    <text x="84" y="588" fill="#6B6B93" font-size="15">Message #general</text>
+    <circle cx="668" cy="582" r="12" fill="#22D3EE" opacity="0.85"/>
+    <text x="660" y="587" fill="#06212B" font-size="13" font-weight="700">⇄</text>
+
+    <!-- preview card -->
+    <g>
+      <rect x="64" y="440" rx="12" width="652" height="104" fill="#16223A" stroke="#22D3EE" stroke-opacity="0.55"/>
+      <text x="88" y="470" fill="#A5F3FC" font-size="14" font-weight="700">TRANSLATION PREVIEW</text>
+      <text x="88" y="494" fill="#7B8BB5" font-size="13.5">เจอกันพรุ่งนี้นะ</text>
+      <text x="88" y="514" fill="#E4E4F2" font-size="15">See you tomorrow!</text>
+      <rect x="560" y="484" rx="8" width="68" height="30" fill="#22D3EE"/>
+      <text x="572" y="504" fill="#06212B" font-size="13" font-weight="700">Send</text>
+      <rect x="636" y="484" rx="8" width="68" height="30" fill="#1E2C4A" stroke="#2E4A73"/>
+      <text x="648" y="504" fill="#9AB0D8" font-size="13">Cancel</text>
+    </g>
+  </g>
+
+  <!-- settings window -->
+  <g>
+    <rect x="780" y="80" rx="14" width="360" height="430" fill="#15152B" stroke="#7C5CFF" stroke-opacity="0.6"/>
+    <text x="808" y="118" fill="#FFFFFF" font-size="19" font-weight="700">Translate settings</text>
+    <text x="1096" y="118" fill="#6B6B93" font-size="16">✕</text>
+
+    <text x="808" y="160" fill="#9A9AC2" font-size="14">Translate incoming messages into</text>
+    <rect x="808" y="172" rx="8" width="304" height="38" fill="#1B1B36" stroke="#33335F"/>
+    <text x="824" y="196" fill="#E4E4F2" font-size="14">Thai</text>
+    <text x="1088" y="196" fill="#6B6B93" font-size="13">▾</text>
+
+    <text x="808" y="244" fill="#9A9AC2" font-size="14">Translate my messages into</text>
+    <rect x="808" y="256" rx="8" width="304" height="38" fill="#1B1B36" stroke="#33335F"/>
+    <text x="824" y="280" fill="#E4E4F2" font-size="14">English (US)</text>
+    <text x="1088" y="280" fill="#6B6B93" font-size="13">▾</text>
+
+    <line x1="808" y1="316" x2="1112" y2="316" stroke="#26264A" stroke-width="1.5"/>
+
+    <rect x="808" y="336" rx="9" width="34" height="19" fill="#22D3EE"/>
+    <circle cx="833" cy="345.5" r="7" fill="#FFFFFF"/>
+    <text x="854" y="351" fill="#E4E4F2" font-size="14.5">Auto-translate incoming</text>
+
+    <rect x="808" y="372" rx="9" width="34" height="19" fill="#22D3EE"/>
+    <circle cx="833" cy="381.5" r="7" fill="#FFFFFF"/>
+    <text x="854" y="387" fill="#E4E4F2" font-size="14.5">Translate before sending</text>
+
+    <rect x="826" y="408" rx="9" width="34" height="19" fill="#22D3EE"/>
+    <circle cx="851" cy="417.5" r="7" fill="#FFFFFF"/>
+    <text x="872" y="423" fill="#9DA3E8" font-size="14">Show preview before sending</text>
+
+    <rect x="826" y="444" rx="9" width="34" height="19" fill="#3A3A6B"/>
+    <circle cx="836" cy="453.5" r="7" fill="#9A9AC2"/>
+    <text x="872" y="459" fill="#9DA3E8" font-size="14">Use conversation context (slower)</text>
+
+    <text x="808" y="496" fill="#6B6B93" font-size="12.5">Local service: 127.0.0.1:5050</text>
+  </g>
+
+  <!-- caption chips -->
+  <g font-size="15" font-weight="600">
+    <rect x="780" y="540" rx="10" width="360" height="40" fill="#12122A" stroke="#2A2A55"/>
+    <text x="800" y="565" fill="#A5F3FC">1 · click ⇄ on any message</text>
+    <rect x="780" y="592" rx="10" width="360" height="40" fill="#12122A" stroke="#2A2A55"/>
+    <text x="800" y="617" fill="#C4B5FD">2 · translation renders inline</text>
+    <rect x="780" y="644" rx="10" width="360" height="40" fill="#12122A" stroke="#2A2A55"/>
+    <text x="800" y="669" fill="#E9D5FF">3 · outgoing gets preview + context</text>
+  </g>
+</svg>

@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 760" width="1180" height="760" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="hdr" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7C5CFF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#8B8BB0"/>
+    </marker>
+    <marker id="arrowc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#22D3EE"/>
+    </marker>
+  </defs>
+  <rect width="1180" height="760" fill="#0E0E1A"/>
+  <rect x="0" y="0" width="1180" height="64" fill="#141428"/>
+  <rect x="0" y="0" width="1180" height="4" fill="url(#hdr)"/>
+  <text x="40" y="40" fill="#FFFFFF" font-size="26" font-weight="700">Architecture — where translation happens</text>
+  <text x="980" y="40" fill="#8B8BB0" font-size="16">everything on your machine</text>
+
+  <!-- Serein client box -->
+  <g>
+    <rect x="40" y="110" rx="16" width="400" height="420" fill="#15152B" stroke="#7C5CFF" stroke-opacity="0.55" stroke-width="2"/>
+    <text x="64" y="146" fill="#C4B5FD" font-size="21" font-weight="700">Serein client (Rust · egui)</text>
+    <rect x="64" y="170" rx="10" width="352" height="64" fill="#1D1D3A" stroke="#3B3B6B"/>
+    <text x="84" y="196" fill="#FFFFFF" font-size="17" font-weight="600">Timeline UI</text>
+    <text x="84" y="218" fill="#9A9AC2" font-size="14">inline translation under messages</text>
+    <rect x="64" y="250" rx="10" width="352" height="64" fill="#1D1D3A" stroke="#3B3B6B"/>
+    <text x="84" y="276" fill="#FFFFFF" font-size="17" font-weight="600">Composer hooks</text>
+    <text x="84" y="298" fill="#9A9AC2" font-size="14">translate-before-send · preview · context</text>
+    <rect x="64" y="330" rx="10" width="352" height="64" fill="#1D1D3A" stroke="#3B3B6B"/>
+    <text x="84" y="356" fill="#FFFFFF" font-size="17" font-weight="600">local_translate module</text>
+    <text x="84" y="378" fill="#9A9AC2" font-size="14">raw HTTP/1.1 · background threads · 0 new deps</text>
+    <rect x="64" y="410" rx="10" width="352" height="92" fill="#20203F" stroke="#7C5CFF" stroke-opacity="0.5"/>
+    <text x="84" y="438" fill="#C4B5FD" font-size="16" font-weight="600">Wasm extension (optional)</text>
+    <text x="84" y="460" fill="#9A9AC2" font-size="14">sandboxed plugin via host-mediated</text>
+    <text x="84" y="480" fill="#9A9AC2" font-size="14">RequestTranslation — no network caps</text>
+  </g>
+
+  <!-- LTEngine box -->
+  <g>
+    <rect x="560" y="150" rx="16" width="330" height="240" fill="#101A2E" stroke="#22D3EE" stroke-opacity="0.6" stroke-width="2"/>
+    <text x="584" y="186" fill="#A5F3FC" font-size="21" font-weight="700">LTEngine (localhost:5050)</text>
+    <rect x="584" y="208" rx="8" width="282" height="46" fill="#14243A" stroke="#1E4A66"/>
+    <text x="600" y="236" fill="#FFFFFF" font-size="15">POST /translate</text>
+    <rect x="584" y="266" rx="8" width="282" height="46" fill="#14243A" stroke="#1E4A66"/>
+    <text x="600" y="288" fill="#FFFFFF" font-size="15">POST /translate-context</text>
+    <text x="600" y="308" fill="#9A9AC2" font-size="13">+ last 6 messages as context</text>
+    <text x="584" y="356" fill="#9A9AC2" font-size="14">LibreTranslate-compatible API</text>
+  </g>
+
+  <!-- Model/GPU box -->
+  <g>
+    <rect x="560" y="440" rx="16" width="330" height="130" fill="#1A1424" stroke="#C084FC" stroke-opacity="0.5" stroke-width="2"/>
+    <text x="584" y="476" fill="#E9D5FF" font-size="19" font-weight="700">gemma3-4b Q4</text>
+    <text x="584" y="502" fill="#9A9AC2" font-size="14">llama.cpp · Vulkan · all layers on GPU</text>
+    <text x="584" y="526" fill="#9A9AC2" font-size="14">≈ 7.9 GB VRAM · ~260–509 ms / message</text>
+  </g>
+
+  <!-- Discord box -->
+  <g>
+    <rect x="980" y="150" rx="16" width="160" height="110" fill="#1A1A2E" stroke="#5865F2" stroke-opacity="0.7" stroke-width="2"/>
+    <text x="1010" y="196" fill="#FFFFFF" font-size="18" font-weight="700">Discord</text>
+    <text x="1010" y="222" fill="#9A9AC2" font-size="14">gateway + REST</text>
+  </g>
+
+  <!-- arrows -->
+  <path d="M 440 300 H 556" stroke="#22D3EE" stroke-width="3" marker-end="url(#arrowc)"/>
+  <text x="456" y="288" fill="#A5F3FC" font-size="14">HTTP 127.0.0.1</text>
+  <path d="M 725 390 V 436" stroke="#8B8BB0" stroke-width="3" marker-end="url(#arrow)"/>
+  <path d="M 440 160 Q 700 92 976 176" fill="none" stroke="#5865F2" stroke-opacity="0.65" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="640" y="96" fill="#8B8BB0" font-size="14">messages in / translated messages out</text>
+
+  <!-- guarantees strip -->
+  <g>
+    <rect x="40" y="610" rx="14" width="1100" height="106" fill="#12122A" stroke="#2A2A55"/>
+    <text x="68" y="650" fill="#FFFFFF" font-size="19" font-weight="700">What never leaves your machine</text>
+    <g font-size="16" fill="#9A9AC2">
+      <text x="68" y="684">✓ message text stays on localhost</text>
+      <text x="440" y="684">✓ no API keys, no accounts</text>
+      <text x="760" y="684">✓ works fully offline after model download</text>
+    </g>
+  </g>
+</svg>

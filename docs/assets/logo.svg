@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7C5CFF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <linearGradient id="stroke" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DFF8FF"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)"/>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="none" stroke="#FFFFFF" stroke-opacity="0.18" stroke-width="2"/>
+  <!-- globe meridians -->
+  <circle cx="128" cy="112" r="52" fill="none" stroke="url(#stroke)" stroke-width="9" stroke-opacity="0.95"/>
+  <ellipse cx="128" cy="112" rx="22" ry="52" fill="none" stroke="url(#stroke)" stroke-width="7" stroke-opacity="0.85"/>
+  <path d="M 78 96 H 178 M 78 128 H 178 M 82 148 Q 128 168 174 148" fill="none" stroke="url(#stroke)" stroke-width="6" stroke-opacity="0.7"/>
+  <!-- translate arrows -->
+  <path d="M 60 196 H 178 L 158 178 M 178 196 L 158 214" fill="none" stroke="#FFFFFF" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 196 226 H 78 L 98 208 M 78 226 L 98 244" fill="none" stroke="#0E7490" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
