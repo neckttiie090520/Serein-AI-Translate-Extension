@@ -536,6 +536,15 @@ fn dismissed() -> &'static Mutex<HashSet<u64>> {
 	DISMISSED.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
+/// Whether the reader hid this message's translation.
+#[cfg(test)]
+pub(crate) fn is_dismissed(message_id: u64) -> bool {
+	dismissed()
+		.lock()
+		.expect("local translate")
+		.contains(&message_id)
+}
+
 /// Hide the inline translation for `message_id` and remember the choice:
 /// auto-translate will not bring it back until the reader asks again.
 pub fn dismiss_inline(message_id: u64) {
