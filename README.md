@@ -25,7 +25,7 @@ Every Discord translation plugin today (Vencord Translate & friends) ships your 
 | Inline translation under messages | ✅ full markdown | ✅ |
 | Auto-translate incoming | ✅ with same-language skip | ✅ |
 | Translate before sending | ✅ direct **or preview-confirmed** | ✅ (no preview) |
-| Conversation-context translation | ✅ last 6 messages resolve pronouns/names | ❌ |
+| Conversation-context translation | ✅ 2/4/6 recent messages (setting) resolve pronouns/names | ❌ |
 | Extension API for plugins | ✅ host-mediated `RequestTranslation` | — (userscript) |
 | Privacy | text never leaves `127.0.0.1` | text leaves the machine |
 | Cost | free, offline-capable | metered / account-bound |
@@ -165,7 +165,7 @@ Serein is an unofficial Discord client, so using it violates Discord's Terms of 
 
 ### How is it different from Vencord Translate?
 
-Vencord's translator sends every message to Google, DeepL or Kagi and needs an API key. Serein Translate runs entirely on your GPU: no key, no rate limits, no third party reading your messages — plus conversation-context translation that resolves pronouns and names from the last 6 messages.
+Vencord's translator sends every message to Google, DeepL or Kagi and needs an API key. Serein Translate runs entirely on your GPU: no key, no rate limits, no third party reading your messages — plus conversation-context translation that resolves pronouns and names from your last 2, 4 or 6 messages (configurable).
 
 ### Which languages does it support?
 

@@ -174,6 +174,20 @@ pub struct Settings {
 	/// When on, before-send translations include recent channel messages as
 	/// context so pronouns and ambiguity resolve correctly. Slower.
 	pub context_aware: bool,
+	/// How many recent messages the context-aware mode includes.
+	pub context_messages: usize,
+}
+
+/// Selectable context depths for the settings window, smallest first.
+pub const CONTEXT_MESSAGE_CHOICES: &[usize] = &[2, 4, 6];
+
+/// Nearest offered depth for a stale or out-of-range stored value.
+fn clamp_context_messages(value: usize) -> usize {
+	CONTEXT_MESSAGE_CHOICES
+		.iter()
+		.min_by_key(|&&choice| choice.abs_diff(value))
+		.copied()
+		.unwrap_or(4)
 }
 
 impl Default for Settings {
@@ -186,6 +200,7 @@ impl Default for Settings {
 			auto_outgoing: false,
 			outgoing_preview: false,
 			context_aware: false,
+			context_messages: 4,
 		}
 	}
 }
@@ -201,9 +216,13 @@ fn with_settings<R>(ctx: &egui::Context, reader: impl FnOnce(&mut Settings) -> R
 	})
 }
 
-/// Snapshot of the current settings.
+/// Snapshot of the current settings, with the context depth normalized to an
+/// offered choice.
 pub fn settings_snapshot(ctx: &egui::Context) -> Settings {
-	with_settings(ctx, |settings| settings.clone())
+	with_settings(ctx, |settings| {
+		settings.context_messages = clamp_context_messages(settings.context_messages);
+		settings.clone()
+	})
 }
 
 /// True when outgoing drafts should be translated before sending.
@@ -272,6 +291,23 @@ pub fn show_settings(ctx: &egui::Context) {
 					&mut settings.context_aware,
 					crate::i18n::translate("local-translate-settings-context"),
 				);
+				ui.add_enabled_ui(settings.context_aware, |ui| {
+					ui.label(crate::i18n::translate(
+						"local-translate-settings-context-depth",
+					));
+					let current = format!("{}", settings.context_messages);
+					egui::ComboBox::from_id_salt("local-translate-context-depth")
+						.selected_text(current)
+						.show_ui(ui, |ui| {
+							for &choice in CONTEXT_MESSAGE_CHOICES {
+								ui.selectable_value(
+									&mut settings.context_messages,
+									choice,
+									format!("{choice}"),
+								);
+							}
+						});
+				});
 			});
 			ui.add_space(6.0);
 			let host = service_authority();
@@ -950,7 +986,17 @@ mod tests {
 	}
 
 	#[test]
+	fn clamp_context_messages_picks_the_nearest_offered_depth() {
+		assert_eq!(clamp_context_messages(2), 2);
+		assert_eq!(clamp_context_messages(3), 2);
+		assert_eq!(clamp_context_messages(0), 2);
+		assert_eq!(clamp_context_messages(4), 4);
+		assert_eq!(clamp_context_messages(5), 4);
+		assert_eq!(clamp_context_messages(6), 6);
+		assert_eq!(clamp_context_messages(99), 6);
+	}
 
+	#[test]
 	fn dismiss_blocks_until_toggled_again() {
 		let _guard = TEST_LOCK
 			.lock()

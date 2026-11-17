@@ -5133,3 +5133,4 @@ local-translate-preview-cancel = 원본 초안 유지
 timeline-message-actions-hide-translation = 번
 
 local-translate-settings-context = 대화 맥락 사용 (느림)
+local-translate-settings-context-depth = 참고할 메시지 수

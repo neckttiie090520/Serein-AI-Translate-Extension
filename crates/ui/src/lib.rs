@@ -11032,13 +11032,14 @@ fn translation_context(
 	if !(settings.auto_outgoing && settings.context_aware) {
 		return None;
 	}
+	let depth = settings.context_messages;
 	let mut lines: Vec<String> = state
 		.timeline
 		.iter()
 		.filter(|message| message.channel == channel)
 		.filter(|message| !message.author.webhook)
 		.rev()
-		.take(6)
+		.take(depth)
 		.filter(|message| !message.content.trim().is_empty())
 		.map(|message| {
 			let name = message

@@ -5160,3 +5160,4 @@ local-translate-preview-cancel = Keep original draft
 timeline-message-actions-hide-translation = Hide translation
 
 local-translate-settings-context = Use conversation context (slower)
+local-translate-settings-context-depth = Context messages
