@@ -639,7 +639,33 @@ impl ExtensionUi {
 	/// Publish this frame's context-menu entries and dispatch one chosen last frame, unless
 	/// the account or connection it was chosen in has changed since.
 	pub(crate) fn context_menus(&mut self, ctx: &egui::Context, state: &State) {
-	for finished in crate::local_translate::take_finished_translations() { 		let mut values = std::collections::BTreeMap::new(); 		values.insert("target".into(), finished.target.clone()); 		match &finished.result { 			Ok(translation) => { 				values.insert("translation".into(), translation.text.clone()); 				if let Some(detected) = &translation.detected_language { 					values.insert("detected".into(), detected.clone()); 				} 			} 			Err(error) => { 				values.insert("error".into(), error.clone()); 			} 		} 		self.queue( 			ctx, 			ExtensionRequest::Invoke { 				id: finished.plugin.clone(), 				invocation: Invocation { 					action: finished.action.clone(), 					values, 						..Default::default() 					}, 				context: ExtensionContext::panel(state), 			}, 		); 	}
+		for finished in crate::local_translate::take_finished_translations() {
+			let mut values = std::collections::BTreeMap::new();
+			values.insert("target".into(), finished.target.clone());
+			match &finished.result {
+				Ok(translation) => {
+					values.insert("translation".into(), translation.text.clone());
+					if let Some(detected) = &translation.detected_language {
+						values.insert("detected".into(), detected.clone());
+					}
+				}
+				Err(error) => {
+					values.insert("error".into(), error.clone());
+				}
+			}
+			self.queue(
+				ctx,
+				ExtensionRequest::Invoke {
+					id: finished.plugin.clone(),
+					invocation: Invocation {
+						action: finished.action.clone(),
+						values,
+						..Default::default()
+					},
+					context: ExtensionContext::panel(state),
+				},
+			);
+		}
 		let chosen = ctx.data_mut(|data| {
 			let chosen = data
 				.get_temp::<Option<MenuChoice>>(egui::Id::unique(CONTEXT_CHOICE))

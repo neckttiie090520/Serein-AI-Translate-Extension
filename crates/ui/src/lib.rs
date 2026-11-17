@@ -2986,7 +2986,18 @@ impl MessagingUi {
 		if self.upload_busy || self.image_share_requested.is_some() || !state.can_send(channel) {
 			return;
 		}
-		if let Some((preview_channel, preview_original, preview_translated)) = 			self.translate_preview.clone() 			&& state.selected == Some(preview_channel) 			&& state.drafts.get(&preview_channel).is_some_and(|draft| draft == &preview_original) 		{ 			state.drafts.insert(preview_channel, preview_translated); 			self.translate_preview = None; 			self.translate_send_skip = true; 		}
+		if let Some((preview_channel, preview_original, preview_translated)) =
+			self.translate_preview.clone()
+			&& state.selected == Some(preview_channel)
+			&& state
+				.drafts
+				.get(&preview_channel)
+				.is_some_and(|draft| draft == &preview_original)
+		{
+			state.drafts.insert(preview_channel, preview_translated);
+			self.translate_preview = None;
+			self.translate_send_skip = true;
+		}
 		if !self.translate_send_skip
 			&& crate::local_translate::should_translate_send(ctx)
 			&& self.editing.is_none()
@@ -2996,11 +3007,10 @@ impl MessagingUi {
 			let draft_text = state.drafts.get(&channel).cloned().unwrap_or_default();
 			if !draft_text.trim().is_empty()
 				&& crate::local_translate::queue_send(
-							ctx,
-							&draft_text,
-							translation_context(ctx, state, channel),
-						)
-			{
+					ctx,
+					&draft_text,
+					translation_context(ctx, state, channel),
+				) {
 				state.status = "Translating message before send…";
 				self.translate_send = Some((channel, draft_text));
 				return;
@@ -3145,7 +3155,10 @@ impl MessagingUi {
 				Ok(translation) => {
 					if let Some((channel, original)) = self.translate_send.take()
 						&& state.selected == Some(channel)
-						&& state.drafts.get(&channel).is_some_and(|draft| draft == &original)
+						&& state
+							.drafts
+							.get(&channel)
+							.is_some_and(|draft| draft == &original)
 					{
 						if crate::local_translate::send_preview_enabled(&ctx) {
 							self.translate_preview = Some((channel, original, translation.text));
@@ -3172,39 +3185,43 @@ impl MessagingUi {
 				egui::Frame::group(ui.style()).show(ui, |ui| {
 					ui.set_min_width(320.0);
 					ui.label(
-						egui::RichText::new(crate::i18n::translate("local-translate-preview-title"))
-								.small()
-								.strong(),
+						egui::RichText::new(crate::i18n::translate(
+							"local-translate-preview-title",
+						))
+						.small()
+						.strong(),
 					);
 					ui.label(
 						egui::RichText::new(&original)
-								.small()
-								.color(ui.visuals().weak_text_color()),
+							.small()
+							.color(ui.visuals().weak_text_color()),
 					);
 					ui.label(&translated);
 					ui.horizontal(|ui| {
 						let draft_unchanged = state
-								.drafts
-								.get(&channel)
-								.is_some_and(|draft| draft == &original);
+							.drafts
+							.get(&channel)
+							.is_some_and(|draft| draft == &original);
 						if ui
-								.add_enabled(
-									draft_unchanged,
-										egui::Button::new(crate::i18n::translate("local-translate-preview-send")),
-								)
-								.clicked()
-								{
-									state.drafts.insert(channel, translated.clone());
-									self.translate_send_skip = true;
-									self.translate_preview = None;
-									preview_sent = true;
-								}
-							if ui
-									.button(crate::i18n::translate("local-translate-preview-cancel"))
-									.clicked()
-								{
-									self.translate_preview = None;
-								}
+							.add_enabled(
+								draft_unchanged,
+								egui::Button::new(crate::i18n::translate(
+									"local-translate-preview-send",
+								)),
+							)
+							.clicked()
+						{
+							state.drafts.insert(channel, translated.clone());
+							self.translate_send_skip = true;
+							self.translate_preview = None;
+							preview_sent = true;
+						}
+						if ui
+							.button(crate::i18n::translate("local-translate-preview-cancel"))
+							.clicked()
+						{
+							self.translate_preview = None;
+						}
 					});
 				});
 				if preview_sent {
@@ -11040,4 +11057,3 @@ fn translation_context(
 	lines.reverse();
 	(!lines.is_empty()).then_some(lines)
 }
-

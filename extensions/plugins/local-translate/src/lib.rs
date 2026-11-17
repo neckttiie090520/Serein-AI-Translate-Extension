@@ -136,8 +136,18 @@ fn proposal_panel(source: &str, draft: bool, target: &str) -> AppOutput {
 	}
 }
 
-fn result_panel(source: &str, translation: &str, detected: Option<&str>, error: Option<&str>, target: &str) -> AppOutput {
-	let mut panel = vec![heading("Local Translate"), text(preview(source)), Element::Separator];
+fn result_panel(
+	source: &str,
+	translation: &str,
+	detected: Option<&str>,
+	error: Option<&str>,
+	target: &str,
+) -> AppOutput {
+	let mut panel = vec![
+		heading("Local Translate"),
+		text(preview(source)),
+		Element::Separator,
+	];
 	if let Some(error) = error {
 		panel.push(text(format!("The local service failed: {error}")));
 		panel.push(text(
@@ -218,7 +228,11 @@ fn handle(input: AppInvocation) -> AppOutput {
 					..Default::default()
 				};
 			}
-			proposal_panel(&source, input.invocation.action == "translate-draft", &target)
+			proposal_panel(
+				&source,
+				input.invocation.action == "translate-draft",
+				&target,
+			)
 		}
 		"panel" => {
 			// Delivered translation results arrive on the panel action with values.
@@ -314,11 +328,11 @@ mod tests {
 	fn request_button_proposes_host_translation_effect() {
 		let mut input = invocation("translate");
 		input.invocation.selected_message = Some("General Kenobi".into());
+		input.invocation.values.insert("request".into(), "1".into());
 		input
 			.invocation
 			.values
-			.insert("request".into(), "1".into());
-		input.invocation.values.insert("target".into(), "th — Thai".into());
+			.insert("target".into(), "th — Thai".into());
 		let output = handle(input);
 		assert!(matches!(
 			&output.effects[..],
@@ -335,18 +349,23 @@ mod tests {
 			.invocation
 			.values
 			.insert("translation".into(), "สวัสดี".into());
-		input.invocation.values.insert("source".into(), "Hello".into());
+		input
+			.invocation
+			.values
+			.insert("source".into(), "Hello".into());
 		input
 			.invocation
 			.values
 			.insert("detected".into(), "English".into());
 		input.invocation.values.insert("target".into(), "th".into());
 		let output = handle(input.clone());
-		assert!(output
-			.output
-			.panel
-			.iter()
-			.any(|element| matches!(element, Element::Text { text } if text == "สวัสดี")));
+		assert!(
+			output
+				.output
+				.panel
+				.iter()
+				.any(|element| matches!(element, Element::Text { text } if text == "สวัสดี"))
+		);
 		assert!(output.effects.is_empty());
 		input.invocation.values.insert("copy".into(), "1".into());
 		let output = handle(input);
@@ -365,11 +384,9 @@ mod tests {
 			.insert("error".into(), "connection refused".into());
 		input.invocation.values.insert("source".into(), "Hi".into());
 		let output = handle(input);
-		assert!(output
-			.output
-			.panel
-			.iter()
-			.any(|element| matches!(element, Element::Text { text } if text.contains("connection refused"))));
+		assert!(output.output.panel.iter().any(
+			|element| matches!(element, Element::Text { text } if text.contains("connection refused"))
+		));
 		assert!(output.effects.is_empty());
 	}
 
@@ -386,10 +403,7 @@ mod tests {
 		let mut input = invocation("translate");
 		input.invocation.selected_message = Some("Bonjour".into());
 		input.invocation.storage = Some(r#"{"target":"th"}"#.into());
-		input
-			.invocation
-			.values
-			.insert("request".into(), "1".into());
+		input.invocation.values.insert("request".into(), "1".into());
 		let output = handle(input.clone());
 		assert!(matches!(
 			&output.effects[..],
@@ -412,21 +426,21 @@ mod tests {
 		let mut input = invocation("translate-draft");
 		input.invocation.composer = Some("good morning everyone".into());
 		let output = handle(input);
-		assert!(output
-			.output
-			.panel
-			.iter()
-			.any(|element| matches!(element, Element::Text { text } if text == "good morning everyone")));
+		assert!(output.output.panel.iter().any(
+			|element| matches!(element, Element::Text { text } if text == "good morning everyone")
+		));
 	}
 
 	#[test]
 	fn empty_sources_explain_themselves() {
 		let output = handle(invocation("translate"));
-		assert!(output
-			.output
-			.panel
-			.iter()
-			.any(|element| matches!(element, Element::Text { text } if text.contains("empty"))));
+		assert!(
+			output
+				.output
+				.panel
+				.iter()
+				.any(|element| matches!(element, Element::Text { text } if text.contains("empty")))
+		);
 	}
 
 	#[test]

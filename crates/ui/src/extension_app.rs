@@ -45,7 +45,7 @@ fn app_action_description(action: &AppAction) -> String {
 			format!(
 				"Translate {chars} characters to {target} through the local service:{ellipsis}{preview}"
 			)
-		},
+		}
 		AppAction::SetMessagingSettings { .. } => {
 			"Change account messaging privacy settings".into()
 		}
@@ -764,7 +764,12 @@ impl MessagingUi {
 			.validate(&entry.manifest)
 			.map_err(|error| error.to_string())?;
 		let plugin_name = entry.manifest.name.clone();
-		let panel_action = entry 			.manifest 			.actions 			.iter() 			.find(|action| action.surface == extensions::Surface::Panel) 			.map(|action| action.id.clone());
+		let panel_action = entry
+			.manifest
+			.actions
+			.iter()
+			.find(|action| action.surface == extensions::Surface::Panel)
+			.map(|action| action.id.clone());
 		match confirmed.effect {
 			HostEffect::TrackedAppAction { .. } => {
 				unreachable!("tracked effects are normalized before dispatch")
@@ -831,7 +836,17 @@ impl MessagingUi {
 								.ok_or("The external URL is invalid")?,
 						);
 					}
-				AppAction::RequestTranslation { text, target } => { 					let action = panel_action.ok_or("This extension has no panel for the translation result")?; 					crate::local_translate::spawn_extension_translation( 						ctx.clone(), 						confirmed.plugin.clone(), 						action, 						text, 						target, 					); 				}
+					AppAction::RequestTranslation { text, target } => {
+						let action = panel_action
+							.ok_or("This extension has no panel for the translation result")?;
+						crate::local_translate::spawn_extension_translation(
+							ctx.clone(),
+							confirmed.plugin.clone(),
+							action,
+							text,
+							target,
+						);
+					}
 					action => self.apply_extension_app_action(state, action, commands)?,
 				}
 			}

@@ -193,8 +193,10 @@ impl Default for Settings {
 fn with_settings<R>(ctx: &egui::Context, reader: impl FnOnce(&mut Settings) -> R) -> R {
 	ctx.data_mut(|data| {
 		#[expect(deprecated)]
-		let state =
-			data.get_temp_mut_or_insert_with(egui::Id::new("local-translate-settings"), Default::default);
+		let state = data.get_temp_mut_or_insert_with(
+			egui::Id::new("local-translate-settings"),
+			Default::default,
+		);
 		reader(state)
 	})
 }
@@ -266,10 +268,10 @@ pub fn show_settings(ctx: &egui::Context) {
 					&mut settings.outgoing_preview,
 					crate::i18n::translate("local-translate-settings-preview"),
 				);
-					ui.checkbox(
-						&mut settings.context_aware,
-						crate::i18n::translate("local-translate-settings-context"),
-					);
+				ui.checkbox(
+					&mut settings.context_aware,
+					crate::i18n::translate("local-translate-settings-context"),
+				);
 			});
 			ui.add_space(6.0);
 			let host = service_authority();
@@ -363,12 +365,25 @@ pub fn toggle_inline(
 	}
 	let mut map = inline_map().lock().expect("local translate");
 	if map.remove(&message_id).is_some() {
-		dismissed().lock().expect("local translate").insert(message_id);
+		dismissed()
+			.lock()
+			.expect("local translate")
+			.insert(message_id);
 		return false;
 	}
 	drop(map);
-	dismissed().lock().expect("local translate").remove(&message_id);
-	spawn_inline(ctx, message_id, text, &settings_snapshot(ctx).incoming_target, false, fallback);
+	dismissed()
+		.lock()
+		.expect("local translate")
+		.remove(&message_id);
+	spawn_inline(
+		ctx,
+		message_id,
+		text,
+		&settings_snapshot(ctx).incoming_target,
+		false,
+		fallback,
+	);
 	true
 }
 
@@ -419,7 +434,8 @@ fn spawn_inline(
 		let mut result = translate_at(&authority, "/translate", &body);
 		// Messages already in the target language are dropped silently: the
 		// renderer removes entries whose error string is empty.
-		if drop_same_language && let Ok(translation) = &result
+		if drop_same_language
+			&& let Ok(translation) = &result
 			&& translation
 				.detected_language
 				.as_deref()
@@ -441,84 +457,66 @@ fn spawn_inline(
 const INLINE_CAP: usize = 24;
 
 fn reserve_slot(
-	
-message_id: u64,
-	
-text: &str,
-	
-fallback: Option<(String, bool)>,
-	
-state: Arc<Mutex<InlineState>>,
+	message_id: u64,
+
+	text: &str,
+
+	fallback: Option<(String, bool)>,
+
+	state: Arc<Mutex<InlineState>>,
 ) -> bool {
-	
-let mut map = inline_map().lock().expect("local translate");
-	
-if map.contains_key(&message_id) {
-		
-return false;
+	let mut map = inline_map().lock().expect("local translate");
+
+	if map.contains_key(&message_id) {
+		return false;
 	}
-	
-if map.len() >= INLINE_CAP {
-		
-let oldest_done = map
-			
-.iter()
-			
-.filter(|(_, shared)| {
-				
-matches!(&*shared.state.lock().expect("local translate"), InlineState::Done(_))
-			
-})
-			
-.min_by_key(|(_, shared)| shared.sequence)
-			
-.map(|(id, _)| *id);
-		
-match oldest_done {
-			
-Some(id) => {
-				
-map.remove(&id);
-			
-}
-			
-None => return false,
-		
-}
+
+	if map.len() >= INLINE_CAP {
+		let oldest_done = map
+			.iter()
+			.filter(|(_, shared)| {
+				matches!(
+					&*shared.state.lock().expect("local translate"),
+					InlineState::Done(_)
+				)
+			})
+			.min_by_key(|(_, shared)| shared.sequence)
+			.map(|(id, _)| *id);
+
+		match oldest_done {
+			Some(id) => {
+				map.remove(&id);
+			}
+
+			None => return false,
+		}
 	}
-	
-static SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-	
-map.insert(
-		
-message_id,
-		
-SharedInline {
-			
-state,
-			
-fallback,
-			
-original: text.to_owned(),
-			
-sequence: SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-		
-},
-	
-);
-	
-true
+
+	static SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+	map.insert(
+		message_id,
+		SharedInline {
+			state,
+
+			fallback,
+
+			original: text.to_owned(),
+
+			sequence: SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+		},
+	);
+
+	true
 }
 
 /// True when the stored translation no longer matches the message's current
 /// text (the message was edited after translation).
 pub fn inline_stale(message_id: u64, current_text: &str) -> bool {
-	
-let map = inline_map().lock().expect("local translate");
-	
-map.get(&message_id)
-		
-.is_some_and(|shared| shared.original != clamp_text(current_text.trim()))
+	let map = inline_map().lock().expect("local translate");
+
+	map.get(&message_id)
+		.is_some_and(|shared| shared.original != clamp_text(current_text.trim()))
 }
 
 // ---------------------------------------------------------------------------
@@ -536,8 +534,7 @@ fn auto_requested() -> &'static Mutex<HashMap<u64, ()>> {
 static DISMISSED: OnceLock<Mutex<HashSet<u64>>> = OnceLock::new();
 
 fn dismissed() -> &'static Mutex<HashSet<u64>> {
-	
-DISMISSED.get_or_init(|| Mutex::new(HashSet::new()))
+	DISMISSED.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
 pub(crate) fn is_dismissed(message_id: u64) -> bool {
@@ -550,34 +547,23 @@ pub(crate) fn is_dismissed(message_id: u64) -> bool {
 /// Hide the inline translation for `message_id` and remember the choice:
 /// auto-translate will not bring it back until the reader asks again.
 pub fn dismiss_inline(message_id: u64) {
-	
-inline_map()
-	
-	
-.lock()
-	
-	
-.expect("local translate")
-	
-	
-.remove(&message_id);
-	
-auto_requested()
-	
-	
-.lock()
-	
-	
-.expect("local translate")
-	
-	
-.remove(&message_id);
-	
-dismissed().lock().expect("local translate").insert(message_id);
+	inline_map()
+		.lock()
+		.expect("local translate")
+		.remove(&message_id);
+
+	auto_requested()
+		.lock()
+		.expect("local translate")
+		.remove(&message_id);
+
+	dismissed()
+		.lock()
+		.expect("local translate")
+		.insert(message_id);
 }
 
 /// Whether the reader hid this message's translation.
-
 
 /// Request the inline translation for a newly rendered message when the
 /// auto-incoming toggle is on. Own messages are skipped and each message is
@@ -586,7 +572,13 @@ pub fn auto_incoming(ctx: &egui::Context, message_id: u64, text: &str, own: bool
 	if own || !enabled() {
 		return;
 	}
-	if dismissed().lock().expect("local translate").contains(&message_id) { 		return; 	}
+	if dismissed()
+		.lock()
+		.expect("local translate")
+		.contains(&message_id)
+	{
+		return;
+	}
 	let settings = settings_snapshot(ctx);
 	if !settings.auto_incoming {
 		return;
@@ -602,29 +594,22 @@ pub fn auto_incoming(ctx: &egui::Context, message_id: u64, text: &str, own: bool
 		}
 	}
 	{
-		
-let mut requested = auto_requested().lock().expect("local translate");
-		
-if requested.contains_key(&message_id) {
-			
-return;
+		let mut requested = auto_requested().lock().expect("local translate");
+
+		if requested.contains_key(&message_id) {
+			return;
 		}
-		
-if requested.len() >= 4096 {
-			
-requested.clear();
+
+		if requested.len() >= 4096 {
+			requested.clear();
 		}
 	}
-	
-if spawn_inline(ctx, message_id, text, &settings.incoming_target, true, None) {
-		
-auto_requested()
-			
-.lock()
-			
-.expect("local translate")
-			
-.insert(message_id, ());
+
+	if spawn_inline(ctx, message_id, text, &settings.incoming_target, true, None) {
+		auto_requested()
+			.lock()
+			.expect("local translate")
+			.insert(message_id, ());
 	}
 }
 
@@ -873,15 +858,16 @@ fn translate_http(authority: &str, path: &str, body: &str) -> Result<Translation
 #[cfg(test)]
 mod tests {
 	use super::*;
-	
-	
-/// The inline map is process-global; serialize tests that mutate it.
-	
-static TEST_LOCK: Mutex<()> = Mutex::new(());
+
+	/// The inline map is process-global; serialize tests that mutate it.
+
+	static TEST_LOCK: Mutex<()> = Mutex::new(());
 
 	#[test]
 	fn reserve_slot_evicts_the_oldest_finished_entry_when_full() {
-		let _guard = TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+		let _guard = TEST_LOCK
+			.lock()
+			.unwrap_or_else(|poisoned| poisoned.into_inner());
 		let map = inline_map();
 		map.lock().expect("local translate").clear();
 		for id in 0..INLINE_CAP as u64 {
@@ -902,7 +888,10 @@ static TEST_LOCK: Mutex<()> = Mutex::new(());
 			Arc::new(Mutex::new(InlineState::Pending)),
 		));
 		let guard = map.lock().expect("local translate");
-		assert!(!guard.contains_key(&0), "oldest finished entry must be evicted");
+		assert!(
+			!guard.contains_key(&0),
+			"oldest finished entry must be evicted"
+		);
 		assert!(guard.contains_key(&999), "new entry must be stored");
 		assert_eq!(guard.len(), INLINE_CAP);
 		drop(guard);
@@ -911,11 +900,18 @@ static TEST_LOCK: Mutex<()> = Mutex::new(());
 
 	#[test]
 	fn reserve_slot_refuses_when_every_slot_is_in_flight() {
-		let _guard = TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+		let _guard = TEST_LOCK
+			.lock()
+			.unwrap_or_else(|poisoned| poisoned.into_inner());
 		let map = inline_map();
 		map.lock().expect("local translate").clear();
 		for id in 0..INLINE_CAP as u64 {
-			assert!(reserve_slot(id, "text", None, Arc::new(Mutex::new(InlineState::Pending))));
+			assert!(reserve_slot(
+				id,
+				"text",
+				None,
+				Arc::new(Mutex::new(InlineState::Pending))
+			));
 		}
 		assert!(
 			!reserve_slot(
@@ -931,7 +927,9 @@ static TEST_LOCK: Mutex<()> = Mutex::new(());
 
 	#[test]
 	fn inline_stale_reports_edited_messages() {
-		let _guard = TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+		let _guard = TEST_LOCK
+			.lock()
+			.unwrap_or_else(|poisoned| poisoned.into_inner());
 		let map = inline_map();
 		map.lock().expect("local translate").clear();
 		assert!(reserve_slot(
@@ -941,50 +939,50 @@ static TEST_LOCK: Mutex<()> = Mutex::new(());
 			Arc::new(Mutex::new(InlineState::Pending)),
 		));
 		assert!(!inline_stale(7, "original text"));
-	assert!(!inline_stale(7, "original text\n"), "trailing whitespace is not an edit");
-		assert!(inline_stale(7, "edited text"), "edited message must be stale");
+		assert!(
+			!inline_stale(7, "original text\n"),
+			"trailing whitespace is not an edit"
+		);
+		assert!(
+			inline_stale(7, "edited text"),
+			"edited message must be stale"
+		);
 		assert!(!inline_stale(8, "anything"), "missing entry is not stale");
 		map.lock().expect("local translate").clear();
 	}
 
-	
-#[test]
-	
-fn dismiss_blocks_until_toggled_again() {
-		
-let _guard = TEST_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-		
-let ctx = egui::Context::default();
-		
-inline_map().lock().expect("local translate").clear();
-		
-dismiss_inline(90_001);
-		
-assert!(is_dismissed(90_001));
-		
-assert!(
-		
-	
-toggle_inline(&ctx, 90_001, "hello world", None),
-		
-	
-"an explicit re-request must clear the dismissed mark"
-		
-);
-		
-assert!(!is_dismissed(90_001));
-		
-assert!(inline_entry(90_001).is_some());
-		
-assert!(!toggle_inline(&ctx, 90_001, "hello world", None));
-		
-assert!(inline_entry(90_001).is_none());
-		
-assert!(is_dismissed(90_001));
-		
-inline_map().lock().expect("local translate").clear();
-		
-dismissed().lock().expect("local translate").clear();
-	
-}
+	#[test]
+
+	fn dismiss_blocks_until_toggled_again() {
+		let _guard = TEST_LOCK
+			.lock()
+			.unwrap_or_else(|poisoned| poisoned.into_inner());
+
+		let ctx = egui::Context::default();
+
+		inline_map().lock().expect("local translate").clear();
+
+		dismiss_inline(90_001);
+
+		assert!(is_dismissed(90_001));
+
+		assert!(
+			toggle_inline(&ctx, 90_001, "hello world", None),
+			"an explicit re-request must clear the dismissed mark"
+		);
+
+		assert!(!is_dismissed(90_001));
+
+		assert!(inline_entry(90_001).is_some());
+
+		assert!(!toggle_inline(&ctx, 90_001, "hello world", None));
+
+		assert!(inline_entry(90_001).is_none());
+
+		assert!(is_dismissed(90_001));
+
+		inline_map().lock().expect("local translate").clear();
+
+		dismissed().lock().expect("local translate").clear();
+	}
 }

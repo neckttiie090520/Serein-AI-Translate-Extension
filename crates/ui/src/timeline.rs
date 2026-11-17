@@ -3914,16 +3914,22 @@ impl TimelineView {
 													.color(colors.muted),
 												);
 											}
-										if crate::local_translate::enabled() {
-											let own_message = state
-												.user
-												.as_ref()
-												.is_some_and(|user| user.id == message.author.id);
-											let text = crate::i18n::message_text(message); 											if crate::local_translate::inline_stale(id.0, &text) { 												crate::local_translate::clear_inline(id.0); 											}
-											if let Some(entry) = crate::local_translate::inline_entry(id.0) {
-												let mut clear = false;
-												let inline_fallback = entry.fallback.clone();
-												match entry.state {
+											if crate::local_translate::enabled() {
+												let own_message =
+													state.user.as_ref().is_some_and(|user| {
+														user.id == message.author.id
+													});
+												let text = crate::i18n::message_text(message);
+												if crate::local_translate::inline_stale(id.0, &text)
+												{
+													crate::local_translate::clear_inline(id.0);
+												}
+												if let Some(entry) =
+													crate::local_translate::inline_entry(id.0)
+												{
+													let mut clear = false;
+													let inline_fallback = entry.fallback.clone();
+													match entry.state {
 													crate::local_translate::InlineState::Pending => {
 														ui.horizontal(|ui| {
 															ui.spinner();
@@ -3991,18 +3997,20 @@ impl TimelineView {
 														});
 													}
 												}
-												if clear {
-													crate::local_translate::dismiss_inline(id.0);
+													if clear {
+														crate::local_translate::dismiss_inline(
+															id.0,
+														);
+													}
+												} else {
+													crate::local_translate::auto_incoming(
+														ui.ctx(),
+														id.0,
+														&text,
+														own_message,
+													);
 												}
-											} else {
-												crate::local_translate::auto_incoming(
-													ui.ctx(),
-													id.0,
-													&text,
-													own_message,
-												);
 											}
-										}
 											let concealed =
 												crate::embeds::has_media_spoilers(message)
 													&& !media;
