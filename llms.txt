@@ -1,0 +1,28 @@
+# Serein Translate
+
+> Free, open-source AI translator built into Serein, a native Rust Discord client. Translation runs on-device: a local LTEngine (llama.cpp, Vulkan) server serves Gemma 3 models on the user's GPU, so Discord messages are translated inline, automatically, or with conversation context — zero cloud APIs, zero API keys, zero telemetry.
+
+## Setup
+
+- [Install wizard & model picks](docs/translate-setup.md): one-command setup for LTEngine + Gemma 3 with GPU-aware model selection on Windows, Linux and macOS
+- [Platform support](docs/platform-support.md): supported operating systems and known limitations
+
+## Background
+
+- [Architecture](docs/architecture.md): how the client, engine and model interact
+- [Performance benchmarks](docs/performance.md): measured latency on an RTX 5060 with gemma3-4b Q4_K_M
+- [Discord compatibility](docs/discord-compatibility.md): risk profile of unofficial clients
+
+## Extension developers
+
+- [Extension SDK overview](docs/extension-sdk-overview.md): the sandboxed plugin model
+- [SDK actions](docs/extension-sdk-actions.md): includes the host-mediated RequestTranslation action
+- [SDK reference](docs/extension-sdk-reference.md): complete extension API documentation
+
+## Key facts
+
+- Latency on RTX 5060 (gemma3-4b Q4_K_M, Vulkan): 259-349 ms for short chat messages, ~509 ms medium technical text, ~3.1 s long paragraphs, ~1.5-2x base with 6-message context.
+- Model tiers (unsloth GGUF Q4_K_M on Hugging Face): gemma3-1b for 2 GB+ VRAM, gemma3-4b default for 4 GB+, gemma3-12b for 10 GB+, gemma3-27b for 18 GB+.
+- Privacy: all inference happens on localhost (127.0.0.1:5050); no message text ever leaves the machine; no cloud API, no API key, no telemetry.
+- License: this fork and upstream Serein are Apache-2.0; LTEngine is AGPL-3.0 and runs as a separate unlinked process; Gemma 3 weights carry Google's model license.
+- Status: fork of ViceVerse-cz/Serein carrying the translation layer; v0.1.0 (2026-11-17); prebuilt binaries are on the roadmap, currently built from source.

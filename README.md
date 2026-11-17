@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="Serein Translate banner" width="100%">
+  <img src="docs/assets/banner.svg" alt="Serein Translate banner — free, open-source, on-device AI translation for Discord" width="100%">
 </p>
 
 # Serein Translate
@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#credits--license)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](docs/platform-support.md)
 
-**On-device LLM translation for the Serein Discord client.** Inline translations under any message, auto-translate for incoming traffic, preview-confirmed translation before you hit send — and an optional conversation-context mode that resolves pronouns and names from the last messages in the channel. All inference runs on your own GPU through a local [LTEngine](https://github.com/LibreTranslate/LibreTranslate) server. **Zero cloud APIs, zero API keys, zero telemetry.**
+**On-device LLM translation for the Serein Discord client.** Inline translations under any message, auto-translate for incoming traffic, preview-confirmed translation before you hit send — and an optional conversation-context mode that resolves pronouns and names from the last messages in the channel. All inference runs on your own GPU through a local [LTEngine](https://github.com/LibreTranslate/LTEngine) server. **Zero cloud APIs, zero API keys, zero telemetry.**
 
 > Forked from [ViceVerse-cz/Serein](https://github.com/ViceVerse-cz/Serein) — a native Rust Discord client. This repo carries the translation layer; everything else is upstream.
 
@@ -39,7 +39,7 @@ Every Discord translation plugin today (Vencord Translate & friends) ships your 
 - **Settings window in the chat bar** — target languages, incoming/outgoing toggles, preview and context switches, live service indicator.
 - **Sandboxed extension API** — plugins can request translations through a validated host-mediated action; the Wasm sandbox keeps its no-network guarantee.
 
-![UX preview](docs/assets/ux-preview.svg)
+![UX preview — inline Discord message translation with auto-translate and pre-send preview cards](docs/assets/ux-preview.svg)
 
 ## Performance
 
@@ -56,7 +56,7 @@ Quality holds across TH↔EN, JP→EN; internet slang is the known weak spot of 
 
 ## Architecture
 
-![Architecture](docs/assets/architecture.svg)
+![Architecture — Discord client calls a local LTEngine llama.cpp server on 127.0.0.1 running gemma3 on the GPU](docs/assets/architecture.svg)
 
 1. **Serein** (this fork) renders chat and hosts `local_translate` — raw HTTP/1.1 over a background thread pool, no new dependencies added to the UI crate.
 2. **LTEngine** (separate process, LibreTranslate's Rust llama.cpp server, patched in by the setup wizard) exposes `/translate` and `/translate-context` on `127.0.0.1:5050`.
@@ -140,6 +140,36 @@ In the settings window: pick **incoming target** + turn on *auto-translate incom
 - [ ] Prebuilt binaries via GitHub Actions (Windows / Linux / macOS)
 - [ ] Language auto-detection heuristics before the request (skip obvious targets client-side)
 - [ ] Upstream PR: `RequestTranslation` as a generic extension-SDK action
+
+## FAQ
+
+### Is Serein Translate free?
+
+Yes. Serein Translate is open source, runs local model weights, and needs no paid API — no DeepL, Google or OpenAI account, no subscription, no rate limits.
+
+### Do I need an API key?
+
+No. Translation runs on your own GPU through a local LTEngine server bound to `127.0.0.1:5050`. There is nothing to sign up for and no key to paste anywhere.
+
+### Does it work offline?
+
+Yes — once the model is downloaded, translation works fully offline. No cloud service is contacted at any point in the translation path; message text never leaves the machine.
+
+### What GPU do I need?
+
+Any Vulkan-capable GPU (Metal on macOS) with about 4 GB of VRAM runs the default gemma3-4b model. The install wizard detects your GPU and picks a model tier automatically, from a 2 GB smoke-test model up to gemma3-27b for 18 GB+ cards. CPU-only mode exists but is slow.
+
+### Will it get my Discord account banned?
+
+Serein is an unofficial Discord client, so using it violates Discord's Terms of Service and carries a real risk of account termination — that warning applies to every unofficial client, translation or not. See [Warning](#warning) and the [compatibility notes](docs/discord-compatibility.md) before logging in with an account you care about.
+
+### How is it different from Vencord Translate?
+
+Vencord's translator sends every message to Google, DeepL or Kagi and needs an API key. Serein Translate runs entirely on your GPU: no key, no rate limits, no third party reading your messages — plus conversation-context translation that resolves pronouns and names from the last 6 messages.
+
+### Which languages does it support?
+
+Whatever the Gemma 3 model handles well — Thai⇄English and Japanese→English are measured and working; internet slang is the known weak spot of a 4B model. The 12B and 27B tiers noticeably improve nuance and slang.
 
 ## Credits & license
 
