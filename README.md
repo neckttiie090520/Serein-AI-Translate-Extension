@@ -59,7 +59,7 @@ Quality holds across TH↔EN, JP→EN; internet slang is the known weak spot of 
 ![Architecture](docs/assets/architecture.svg)
 
 1. **Serein** (this fork) renders chat and hosts `local_translate` — raw HTTP/1.1 over a background thread pool, no new dependencies added to the UI crate.
-2. **LTEngine** (separate process, LibreTranslate's Rust llama.cpp server) exposes `/translate` and `/translate-context` on `127.0.0.1:5050`.
+2. **LTEngine** (separate process, LibreTranslate's Rust llama.cpp server, patched in by the setup wizard) exposes `/translate` and `/translate-context` on `127.0.0.1:5050`.
 3. **gemma3-4b** runs on your GPU via Vulkan. Nothing — not one byte of message text — ever leaves localhost.
 
 ## Getting started
@@ -68,14 +68,40 @@ Quality holds across TH↔EN, JP→EN; internet slang is the known weak spot of 
 
 ```bash
 # LTEngine — LibreTranslate's llama.cpp server (Vulkan build)
-git clone --recursive https://github.com/LibreTranslate/LTEngine && cd LTEngine
-cargo build --release --features vulkan
-# serve a local GGUF model — omit --model-file to let LTEngine fetch gemma3 itself:
-target/release/ltengine --model-file /path/to/gemma-3-4b-it-Q4_K_M.gguf
-# the engine listens on http://127.0.0.1:5050 by default
 ```
 
-Grab the model from Hugging Face (e.g. `google/gemma-3-4b-it` GGUF) — ~2.5 GB download, done once.
+### 1. One-command setup
+
+The setup wizard checks your toolchain, builds the LTEngine server (patching in the `/translate-context` endpoint this fork uses for context-aware mode), picks a gemma3 GGUF for your GPU, downloads it (no Hugging Face account needed) and writes the launcher config.
+
+ ```powershell
+# Windows (PowerShell)
+git clone https://github.com/neckttiie090520/Serein-AI-Translate-Extension
+cd Serein-AI-Translate-Extension
+powershell -ExecutionPolicy Bypass -File scripts\setup-translate.ps1
+ ```
+
+ ```bash
+# macOS / Linux
+git clone https://github.com/neckttiie090520/Serein-AI-Translate-Extension
+cd Serein-AI-Translate-Extension
+./scripts/setup-translate.sh
+ ```
+
+Start the engine any time with `scripts\start-translate.ps1` (Windows) or `scripts/start-translate.sh` (macOS/Linux), then run the client. Prefer manual setup? See [docs/translate-setup.md](docs/translate-setup.md).
+
+## Hardware & model picks
+
+Any Vulkan-capable GPU works (Metal on macOS; `--cpu` runs CPU-only but slowly). GGUF quant is Q4_K_M; VRAM is the model resident on GPU.
+
+| Setup | GPU VRAM | Disk | Expectation |
+|---|---|---|---|
+| gemma3-1b | 2 GB+ | ~0.8 GB | smoke test only — quality suffers |
+| **gemma3-4b (default)** | 4 GB+ | ~2.5 GB | the sweet spot: 259–349 ms short chat messages |
+| gemma3-12b | 10 GB+ | ~7.5 GB | noticeably better nuance and slang |
+| gemma3-27b | 18 GB+ | ~16.5 GB | best quality, slowest |
+
+Comfortable minimums for the whole stack: Windows 10+/Linux/macOS, 8 GB RAM, ~10 GB free disk (model + Rust toolchain + build artifacts), up-to-date GPU drivers. The wizard auto-picks by detected VRAM; override with `-Model gemma3-12b` / `--model gemma3-12b`.
 
 ### 2. Build & run the client
 
@@ -95,6 +121,12 @@ Optional environment knobs:
 
 Then open the **⇄ Globe** button in the chat bar to pick languages and toggles.
 
+### 3. Set your languages once (30 seconds)
+
+In the settings window: pick **incoming target** + turn on *auto-translate incoming*, pick **outgoing target** + turn on *auto-translate outgoing* (with *preview* if you want to confirm before sending), and toggle **context-aware** when nuance matters.
+
+**Working in an English workplace, reading Thai?** Set incoming target to `th` and outgoing target to `en`. English messages translate to Thai inline as they arrive; type in Thai, hit enter, and the English translation waits in a preview card — *Send translation* posts it. One window, no copy-pasting into external tools.
+
 ## Engineering notes
 
 - **No-dependency HTTP client.** The UI crate gained zero deps: translation calls are hand-rolled HTTP/1.1 POSTs on `std::thread`, JSON escaping/unescape included — egui stays render-loop-clean, results arrive via repaint requests.
@@ -105,7 +137,6 @@ Then open the **⇄ Globe** button in the chat bar to pick languages and toggles
 
 ## Roadmap
 
-- [ ] One-script LTEngine setup (download model, build, register service)
 - [ ] Prebuilt binaries via GitHub Actions (Windows / Linux / macOS)
 - [ ] Language auto-detection heuristics before the request (skip obvious targets client-side)
 - [ ] Upstream PR: `RequestTranslation` as a generic extension-SDK action
@@ -123,3 +154,4 @@ Community standards: [CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](
 ## Warning
 
 Using unofficial Discord clients automates a normal account outside the official OAuth2/bot API, which violates Discord's Terms of Service and carries a risk of account termination. This is an interoperability experiment for personal use — review [Serein's compatibility notes](docs/discord-compatibility.md) before logging in with any account you care about.
+
