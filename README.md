@@ -4,6 +4,10 @@
 
 # Serein Translate
 
+[![CI](https://github.com/neckttiie090520/Serein-AI-Translate-Extension/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/neckttiie090520/Serein-AI-Translate-Extension/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#credits--license)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](docs/platform-support.md)
+
 **On-device LLM translation for the Serein Discord client.** Inline translations under any message, auto-translate for incoming traffic, preview-confirmed translation before you hit send — and an optional conversation-context mode that resolves pronouns and names from the last messages in the channel. All inference runs on your own GPU through a local [LTEngine](https://github.com/LibreTranslate/LibreTranslate) server. **Zero cloud APIs, zero API keys, zero telemetry.**
 
 > Forked from [ViceVerse-cz/Serein](https://github.com/ViceVerse-cz/Serein) — a native Rust Discord client. This repo carries the translation layer; everything else is upstream.
@@ -64,9 +68,11 @@ Quality holds across TH↔EN, JP→EN; internet slang is the known weak spot of 
 
 ```bash
 # LTEngine — LibreTranslate's llama.cpp server (Vulkan build)
-git clone https://github.com/your-ltengine-mirror && cd ltengine
-# build with your Vulkan toolchain, then:
-LT_MODEL=path/to/gemma-3-4b-it-Q4_K_M.gguf ltengine --port 5050
+git clone --recursive https://github.com/LibreTranslate/LTEngine && cd LTEngine
+cargo build --release --features vulkan
+# serve a local GGUF model — omit --model-file to let LTEngine fetch gemma3 itself:
+target/release/ltengine --model-file /path/to/gemma-3-4b-it-Q4_K_M.gguf
+# the engine listens on http://127.0.0.1:5050 by default
 ```
 
 Grab the model from Hugging Face (e.g. `google/gemma-3-4b-it` GGUF) — ~2.5 GB download, done once.
@@ -74,7 +80,7 @@ Grab the model from Hugging Face (e.g. `google/gemma-3-4b-it` GGUF) — ~2.5 GB 
 ### 2. Build & run the client
 
 ```bash
-git clone https://github.com/Necktiee/Serein-AI-Translate-Extension
+git clone https://github.com/neckttiie090520/Serein-AI-Translate-Extension
 cd Serein-AI-Translate-Extension
 cargo run --release
 ```
@@ -107,10 +113,12 @@ Then open the **⇄ Globe** button in the chat bar to pick languages and toggles
 ## Credits & license
 
 - **[Serein](https://github.com/ViceVerse-cz/Serein)** by ViceVerse-cz and contributors — the client this builds on. Apache-2.0.
-- **[LTEngine](https://github.com/LibreTranslate/LibreTranslate)** / LibreTranslate — AGPL-3.0, runs as a separate process (not linked).
+- **[LTEngine](https://github.com/LibreTranslate/LTEngine)** — AGPL-3.0, runs as a separate process (not linked).
 - **gemma3** — Google, model weights via Hugging Face under its own license.
 
 This fork: Apache-2.0. See `NOTICE` for attribution details.
+
+Community standards: [CONTRIBUTING.md](CONTRIBUTING.md) · [CODE_OF_CONDUCT.md](.github/CODE_OF_CONDUCT.md) · [SECURITY.md](SECURITY.md) · [CHANGELOG.md](CHANGELOG.md) · [SUPPORT.md](.github/SUPPORT.md)
 
 ## Warning
 
