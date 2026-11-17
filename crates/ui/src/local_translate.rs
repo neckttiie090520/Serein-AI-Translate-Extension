@@ -73,10 +73,10 @@ pub(crate) fn spawn_extension_translation(
 	std::thread::spawn(move || {
 		let result = translate_at(&authority, "/translate", &body);
 		let repaint = ctx.clone();
-		if let Ok(mut list) = pending().lock() {
-			if let Some(record) = list.get_mut(index) {
-				record.outcome = Some(result);
-			}
+		if let Ok(mut list) = pending().lock()
+			&& let Some(record) = list.get_mut(index)
+		{
+			record.outcome = Some(result);
 		}
 		repaint.request_repaint();
 	});
@@ -428,7 +428,6 @@ fn spawn_inline(
 	let authority = service_authority();
 	let body = request_body(text, target);
 	let target_owned = target.to_owned();
-	let drop_same_language = drop_same_language;
 	let repaint = ctx.clone();
 	std::thread::spawn(move || {
 		let mut result = translate_at(&authority, "/translate", &body);
@@ -537,13 +536,6 @@ fn dismissed() -> &'static Mutex<HashSet<u64>> {
 	DISMISSED.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
-pub(crate) fn is_dismissed(message_id: u64) -> bool {
-	dismissed()
-		.lock()
-		.expect("local translate")
-		.contains(&message_id)
-}
-
 /// Hide the inline translation for `message_id` and remember the choice:
 /// auto-translate will not bring it back until the reader asks again.
 pub fn dismiss_inline(message_id: u64) {
@@ -562,8 +554,6 @@ pub fn dismiss_inline(message_id: u64) {
 		.expect("local translate")
 		.insert(message_id);
 }
-
-/// Whether the reader hid this message's translation.
 
 /// Request the inline translation for a newly rendered message when the
 /// auto-incoming toggle is on. Own messages are skipped and each message is
@@ -656,7 +646,7 @@ pub fn queue_send(ctx: &egui::Context, text: &str, context: Option<Vec<String>>)
 	};
 	let repaint = ctx.clone();
 	std::thread::spawn(move || {
-		let result = translate_at(&authority, &path, &body);
+		let result = translate_at(&authority, path, &body);
 		if let Ok(mut slot) = state.lock() {
 			*slot = Some(result);
 		}
@@ -860,7 +850,6 @@ mod tests {
 	use super::*;
 
 	/// The inline map is process-global; serialize tests that mutate it.
-
 	static TEST_LOCK: Mutex<()> = Mutex::new(());
 
 	#[test]

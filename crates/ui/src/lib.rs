@@ -3148,7 +3148,7 @@ impl MessagingUi {
 			ctx.request_repaint();
 			return;
 		}
-		crate::local_translate::show_settings(&ctx);
+		crate::local_translate::show_settings(ctx);
 		let mut preview_sent = false;
 		if let Some(result) = crate::local_translate::take_finished_send() {
 			match result {
@@ -3160,7 +3160,7 @@ impl MessagingUi {
 							.get(&channel)
 							.is_some_and(|draft| draft == &original)
 					{
-						if crate::local_translate::send_preview_enabled(&ctx) {
+						if crate::local_translate::send_preview_enabled(ctx) {
 							self.translate_preview = Some((channel, original, translation.text));
 						} else {
 							state.drafts.insert(channel, translation.text);
