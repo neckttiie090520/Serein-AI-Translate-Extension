@@ -5103,3 +5103,33 @@ moderation-delete-week = 지난 7일
 moderation-confirm-timeout = 타임아웃
 # Context: moderation
 moderation-confirm-ban = 차단
+
+local-translate-title = 번역
+local-translate-pending = 로컬에서 번역 중…
+local-translate-detected = 감지됨: { $language }
+local-translate-copy = 복사
+local-translate-open-browser = 대신 브라우저에서 열기
+local-translate-failed = 로컬 번역 서비스가 예상치 못한 응답을 반환했습니다.
+local-translate-unreachable = 로컬 번역 서비스에 연결할 수 없음
+local-translate-inline-pending = 번역 중…
+local-translate-inline-from = { $language }에서 번역됨
+local-translate-send-pending = 보내기 전에 메시지 번역 중…
+local-translate-send-failed = 번역 실패; 메시지가 전송되지 않았습니다
+local-translate-send-stale = 번역 중 초안이 변경됨; 메시지가 전송되지 않았습니다
+local-translate-settings-title = 번역
+local-translate-settings-incoming = 받는 메시지를 다음 언어로 번역
+local-translate-settings-outgoing = 내 메시지를 다음 언어로 번역
+local-translate-settings-auto-incoming = 받는 메시지 자동 번역
+local-translate-settings-auto-outgoing = 보내기 전 자동 번역
+local-translate-settings-hint = 로컬 서비스: { $host }
+local-translate-chat-bar = 번역 설정
+local-translate-chat-bar-active = 번역 설정 (자동 켜짐)
+
+local-translate-settings-preview = 보내기 전 미리보기 표시
+local-translate-preview-title = 번역 미리보기
+local-translate-preview-send = 번역 보내기
+local-translate-preview-cancel = 원본 초안 유지
+
+timeline-message-actions-hide-translation = 번
+
+local-translate-settings-context = 대화 맥락 사용 (느림)

@@ -128,6 +128,7 @@ mod text_menu;
 mod thumbhash;
 #[cfg(feature = "demo")]
 pub use polls::debug_poll_check;
+mod local_translate;
 mod moderation;
 mod timeline;
 #[cfg(test)]
@@ -592,6 +593,12 @@ pub struct MessagingUi {
 	editing: Option<(Id, Id, String)>,
 	composer_edit: Option<(Id, Id)>,
 	edit_sent: Option<SubmittedEdit>,
+	/// Channel + original draft of a before-send translation in flight.
+	translate_send: Option<(model::Id, String)>,
+	/// Set when the composer re-submits an already-translated draft.
+	translate_send_skip: bool,
+	/// Channel, original draft and finished translation awaiting confirmation.
+	translate_preview: Option<(model::Id, String, String)>,
 	deleting: Option<(Id, Id)>,
 	ime_active: bool,
 	/// A composer picker pick returns focus to the draft next frame, once its click is over.
@@ -2979,6 +2986,27 @@ impl MessagingUi {
 		if self.upload_busy || self.image_share_requested.is_some() || !state.can_send(channel) {
 			return;
 		}
+		if let Some((preview_channel, preview_original, preview_translated)) = 			self.translate_preview.clone() 			&& state.selected == Some(preview_channel) 			&& state.drafts.get(&preview_channel).is_some_and(|draft| draft == &preview_original) 		{ 			state.drafts.insert(preview_channel, preview_translated); 			self.translate_preview = None; 			self.translate_send_skip = true; 		}
+		if !self.translate_send_skip
+			&& crate::local_translate::should_translate_send(ctx)
+			&& self.editing.is_none()
+			&& self.selected_files().is_empty()
+			&& let Some(channel) = state.selected
+		{
+			let draft_text = state.drafts.get(&channel).cloned().unwrap_or_default();
+			if !draft_text.trim().is_empty()
+				&& crate::local_translate::queue_send(
+							ctx,
+							&draft_text,
+							translation_context(ctx, state, channel),
+						)
+			{
+				state.status = "Translating message before send…";
+				self.translate_send = Some((channel, draft_text));
+				return;
+			}
+		}
+		self.translate_send_skip = false;
 		let draft = state.drafts.get(&channel).map_or("", String::as_str);
 		if self.selected_files().is_empty()
 			&& let Some(assets) = model::ImageShare::markdown_only(draft)
@@ -3109,6 +3137,81 @@ impl MessagingUi {
 			));
 			ctx.request_repaint();
 			return;
+		}
+		crate::local_translate::show_settings(&ctx);
+		let mut preview_sent = false;
+		if let Some(result) = crate::local_translate::take_finished_send() {
+			match result {
+				Ok(translation) => {
+					if let Some((channel, original)) = self.translate_send.take()
+						&& state.selected == Some(channel)
+						&& state.drafts.get(&channel).is_some_and(|draft| draft == &original)
+					{
+						if crate::local_translate::send_preview_enabled(&ctx) {
+							self.translate_preview = Some((channel, original, translation.text));
+						} else {
+							state.drafts.insert(channel, translation.text);
+							self.translate_send_skip = true;
+							self.submit_composer(state, ctx, commands);
+							return;
+						}
+					} else {
+						state.status = "Draft changed while translating; message not sent";
+					}
+				}
+				Err(_) => {
+					state.status = "Translation failed; the message was not sent";
+				}
+			}
+		}
+		if let Some((channel, original, translated)) = self.translate_preview.clone() {
+			if state.selected != Some(channel) {
+				self.translate_preview = None;
+			} else {
+				ui.add_space(4.0);
+				egui::Frame::group(ui.style()).show(ui, |ui| {
+					ui.set_min_width(320.0);
+					ui.label(
+						egui::RichText::new(crate::i18n::translate("local-translate-preview-title"))
+								.small()
+								.strong(),
+					);
+					ui.label(
+						egui::RichText::new(&original)
+								.small()
+								.color(ui.visuals().weak_text_color()),
+					);
+					ui.label(&translated);
+					ui.horizontal(|ui| {
+						let draft_unchanged = state
+								.drafts
+								.get(&channel)
+								.is_some_and(|draft| draft == &original);
+						if ui
+								.add_enabled(
+									draft_unchanged,
+										egui::Button::new(crate::i18n::translate("local-translate-preview-send")),
+								)
+								.clicked()
+								{
+									state.drafts.insert(channel, translated.clone());
+									self.translate_send_skip = true;
+									self.translate_preview = None;
+									preview_sent = true;
+								}
+							if ui
+									.button(crate::i18n::translate("local-translate-preview-cancel"))
+									.clicked()
+								{
+									self.translate_preview = None;
+								}
+					});
+				});
+				if preview_sent {
+					self.submit_composer(state, ctx, commands);
+					return;
+				}
+			}
 		}
 		let colors = crate::design::palette(ui);
 		let timestamp_blocked = self.timestamp_picker.is_open();
@@ -3734,6 +3837,17 @@ impl MessagingUi {
                     };
                     if !editing_here {
                         self.extensions.composer_menu(ui, state);
+                    }
+                    if !editing_here && crate::local_translate::enabled() {
+                        let settings = crate::local_translate::settings_snapshot(ui.ctx());
+                        let label = if settings.auto_incoming || settings.auto_outgoing {
+                            crate::i18n::translate("local-translate-chat-bar-active")
+                        } else {
+                            crate::i18n::translate("local-translate-chat-bar")
+                        };
+                        if icons::button(ui, icons::Icon::Globe, 28.0, &label).clicked() {
+                            crate::local_translate::open_settings(ui.ctx());
+                        }
                     }
                     if let Some(attach) = attach {
                         egui::Popup::menu(&attach)
@@ -10887,3 +11001,43 @@ pub fn debug_pr565(mut state: State, mut user: model::User) {
 
 #[cfg(all(debug_assertions, feature = "demo"))]
 pub use timeline::debug_copy_feedback_check;
+/// Recent channel messages as translation context lines ("Name: text"),
+/// when the context-aware toggle is on. Newest last.
+fn translation_context(
+	ctx: &egui::Context,
+	state: &State,
+	channel: model::Id,
+) -> Option<Vec<String>> {
+	if !crate::local_translate::enabled() {
+		return None;
+	}
+	let settings = crate::local_translate::settings_snapshot(ctx);
+	if !(settings.auto_outgoing && settings.context_aware) {
+		return None;
+	}
+	let mut lines: Vec<String> = state
+		.timeline
+		.iter()
+		.filter(|message| message.channel == channel)
+		.filter(|message| !message.author.webhook)
+		.rev()
+		.take(6)
+		.filter(|message| !message.content.trim().is_empty())
+		.map(|message| {
+			let name = message
+				.author_nick
+				.as_deref()
+				.filter(|nick| !nick.is_empty())
+				.unwrap_or(message.author.name.as_str());
+			let body = message.content.replace(['\n', '\r'], " ");
+			let mut line = format!("{name}: {body}");
+			if line.chars().count() > 300 {
+				line = line.chars().take(300).collect();
+			}
+			line
+		})
+		.collect();
+	lines.reverse();
+	(!lines.is_empty()).then_some(lines)
+}
+

@@ -489,7 +489,7 @@ fn system_icon(kind: u8, colors: &crate::design::Palette) -> (crate::icons::Icon
 		_ => (Icon::Help, colors.muted),
 	}
 }
-/// "N messages · last activity" summary for a thread row, built from synced metadata only.
+/// "N messages Â· last activity" summary for a thread row, built from synced metadata only.
 pub(crate) fn thread_activity(thread: &model::Channel) -> String {
 	let count = match thread.message_count {
 		Some(0) => crate::i18n::translate("timeline-thread-activity-no-replies"),
@@ -666,7 +666,7 @@ fn thread_card(
 			let (label, color) = if count == 0 {
 				(thread_count(0), colors.muted)
 			} else {
-				(format!("{} ›", thread_count(count)), colors.link)
+				(format!("{} â€º", thread_count(count)), colors.link)
 			};
 			egui::WidgetText::from(RichText::new(label).size(12.5).color(color)).into_galley(
 				ui,
@@ -817,7 +817,7 @@ fn thread_card(
 	if let Some(latest) = card.latest {
 		named.push(crate::local_time::ago(timestamp(latest)));
 	}
-	let named = named.join(" · ");
+	let named = named.join(" Â· ");
 	response.widget_info(|| {
 		egui::WidgetInfo::labeled(egui::Role::Link, ui.is_enabled(), named.clone())
 	});
@@ -1093,7 +1093,7 @@ fn intro_sentence(ui: &mut egui::Ui, key: &str, name: &str) {
 	ui.add(egui::Label::new(job).wrap().selectable(false));
 }
 
-/// "Welcome to the beginning of the … group" header, as in the official client.
+/// "Welcome to the beginning of the â€¦ group" header, as in the official client.
 fn group_intro(
 	ui: &mut egui::Ui,
 	channel: &model::Channel,
@@ -1190,7 +1190,7 @@ fn dm_intro(
 							.size(14.0)
 							.color(colors.muted),
 					);
-					ui.label(RichText::new("•").color(colors.muted));
+					ui.label(RichText::new("â€¢").color(colors.muted));
 				}
 				let enabled = crate::profiles::actions_enabled(state);
 				let button = |ui: &mut egui::Ui,
@@ -2059,7 +2059,7 @@ fn present_control(
 		);
 	}
 	let name = crate::i18n::translate("timeline-present-control-jump-to-present");
-	let name = new_below.map_or(name.clone(), |label| format!("{label} · {name}"));
+	let name = new_below.map_or(name.clone(), |label| format!("{label} Â· {name}"));
 	response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &name));
 	let clicked = response
 		.on_hover_text(if unread || new_below.is_some() {
@@ -2281,6 +2281,18 @@ fn show_system(
 	}
 }
 impl TimelineView {
+	/// Translate uses the local LibreTranslate-compatible service when enabled,
+	/// falling back to the reviewed browser link otherwise.
+	fn translate_clicked(&mut self, ctx: &egui::Context, id: Id, message: &Message) {
+		let text = crate::i18n::message_text(message);
+		if crate::local_translate::enabled() {
+			crate::local_translate::toggle_inline(ctx, id.0, &text, translation_url(message));
+		} else if let Some((url, truncated)) = translation_url(message) {
+			self.truncated_translation = truncated.then(|| url.clone());
+			self.browser_opening = Some(url);
+		}
+	}
+
 	pub(super) fn show_fullscreen_video(&mut self, ctx: &egui::Context, state: &State) -> bool {
 		if self.video.is_fullscreen() {
 			// Runs before the timeline lays out, so the tweak is read directly.
@@ -3460,7 +3472,7 @@ impl TimelineView {
 														}
 													} else {
 														preview.append(
-															"Earlier message · View original",
+															"Earlier message Â· View original",
 															0.0,
 															egui::TextFormat {
 																font_id: egui::FontId::proportional(
@@ -3902,6 +3914,95 @@ impl TimelineView {
 													.color(colors.muted),
 												);
 											}
+										if crate::local_translate::enabled() {
+											let own_message = state
+												.user
+												.as_ref()
+												.is_some_and(|user| user.id == message.author.id);
+											let text = crate::i18n::message_text(message); 											if crate::local_translate::inline_stale(id.0, &text) { 												crate::local_translate::clear_inline(id.0); 											}
+											if let Some(entry) = crate::local_translate::inline_entry(id.0) {
+												let mut clear = false;
+												let inline_fallback = entry.fallback.clone();
+												match entry.state {
+													crate::local_translate::InlineState::Pending => {
+														ui.horizontal(|ui| {
+															ui.spinner();
+															ui.label(
+																RichText::new(crate::i18n::translate(
+																	"local-translate-inline-pending",
+																))
+																.small()
+																.color(colors.muted),
+															);
+														});
+													}
+													crate::local_translate::InlineState::Done(Ok(translation)) => {
+														ui.add_space(2.0);
+														let translated = self.formatted.get_part(
+															id,
+															u16::MAX,
+															&translation.text,
+														);
+														let mention_source = crate::mentions::MentionSource {
+															state,
+															channel: message.channel,
+														};
+														translated.show_with_images(
+															ui,
+															&mut self.opening,
+															&message.mentions,
+															Some(&mention_source),
+															profile,
+															(avatars, state.demo, &state.guilds),
+															crate::design::MessageCardSurface::Conversation,
+														);
+															let detected = translation
+																.detected_language
+																.as_deref()
+																.unwrap_or("?");
+															ui.label(
+																RichText::new(crate::i18n::translate_args(
+																	"local-translate-inline-from",
+																	&[("language", detected)],
+																))
+																.small()
+																.color(colors.muted),
+															);
+													}
+													crate::local_translate::InlineState::Done(Err(error))
+														if error.is_empty() =>
+													{
+														clear = true;
+													}
+													crate::local_translate::InlineState::Done(Err(error)) => {
+														ui.horizontal(|ui| {
+															ui.label(
+																RichText::new(&error)
+																	.small()
+																	.color(ui.visuals().error_fg_color),
+															);
+														if let Some((url, truncated)) = &inline_fallback
+															&& ui.small_button("^").clicked()
+															{
+																self.truncated_translation =
+																	(*truncated).then(|| url.clone());
+																self.browser_opening = Some(url.clone());
+															}
+														});
+													}
+												}
+												if clear {
+													crate::local_translate::dismiss_inline(id.0);
+												}
+											} else {
+												crate::local_translate::auto_incoming(
+													ui.ctx(),
+													id.0,
+													&text,
+													own_message,
+												);
+											}
+										}
 											let concealed =
 												crate::embeds::has_media_spoilers(message)
 													&& !media;
@@ -4139,7 +4240,7 @@ impl TimelineView {
 												if unknown_system {
 													ui.label(
 														RichText::new(format!(
-															"Unsupported message type {} · Preview unavailable",
+															"Unsupported message type {} Â· Preview unavailable",
 															message.kind
 														))
 														.small()
@@ -4150,19 +4251,19 @@ impl TimelineView {
 													(
 														message.extra_content.poll
 															&& message.poll.is_none(),
-														"Poll · Preview unavailable",
+														"Poll Â· Preview unavailable",
 													),
 													(
 														(message.extra_content.sticker_items
 															|| message.extra_content.stickers)
 															&& message.sticker_items.is_empty(),
-														"Sticker · Preview unavailable",
+														"Sticker Â· Preview unavailable",
 													),
 													(
 														(message.extra_content.components
 															|| message.extra_content.components_v2)
 															&& message.components.is_empty(),
-														"Components · Preview unavailable",
+														"Components Â· Preview unavailable",
 													),
 												] {
 													if present {
@@ -4708,11 +4809,9 @@ impl TimelineView {
 										crate::icons::Icon::Globe,
 										"timeline-message-actions-translate",
 									)
-									.clicked() && let Some((url, truncated)) =
-									translation_url(message)
+									.clicked()
 								{
-									self.truncated_translation = truncated.then(|| url.clone());
-									self.browser_opening = Some(url);
+									self.translate_clicked(ui.ctx(), id, message);
 								}
 							}
 							if react && !shift {
@@ -4752,10 +4851,20 @@ impl TimelineView {
 								crate::icons::Icon::Globe,
 								"timeline-message-actions-translate",
 							)
-							.clicked() && let Some((url, truncated)) = translation_url(message)
+							.clicked()
 							{
-								self.truncated_translation = truncated.then(|| url.clone());
-								self.browser_opening = Some(url);
+								self.translate_clicked(ui.ctx(), id, message);
+							}
+							if translate
+								&& crate::local_translate::inline_entry(id.0).is_some()
+								&& action_button(
+									&mut toolbar,
+									crate::icons::Icon::Close,
+									"timeline-message-actions-hide-translation",
+								)
+								.clicked()
+							{
+								crate::local_translate::dismiss_inline(id.0);
 							}
 							if let Some((anchor, trigger)) = crate::reactions::add_button(
 								&mut toolbar,
@@ -7191,7 +7300,7 @@ mod tests {
 		// "View thread" button and the generic "Thread" label are both gone.
 		assert_eq!(view.thread_preview_request, Some(starter_id));
 		assert!(
-			!painted.iter().any(|text| text == "View thread ›"),
+			!painted.iter().any(|text| text == "View thread â€º"),
 			"the card itself opens the thread: {painted:?}"
 		);
 		assert!(
@@ -7278,7 +7387,7 @@ mod tests {
 			}
 			output.drop_without_applying_deltas();
 		}
-		let count = format!("{} ›", thread_count(3));
+		let count = format!("{} â€º", thread_count(3));
 		for label in [
 			"Synthetic private thread",
 			count.as_str(),
@@ -7625,13 +7734,13 @@ mod tests {
 					.any(|(text, _)| text.trim_end() == "Supported text remains")
 			);
 			for (label, present) in [
-				("Poll · Preview unavailable", extra.poll),
+				("Poll Â· Preview unavailable", extra.poll),
 				(
-					"Sticker · Preview unavailable",
+					"Sticker Â· Preview unavailable",
 					extra.sticker_items || extra.stickers,
 				),
 				(
-					"Components · Preview unavailable",
+					"Components Â· Preview unavailable",
 					extra.components || extra.components_v2,
 				),
 				("Open in Discord", extra.any()),
@@ -7645,7 +7754,7 @@ mod tests {
 			assert!(
 				!texts
 					.iter()
-					.any(|(text, _)| text == "System content · Preview unavailable")
+					.any(|(text, _)| text == "System content Â· Preview unavailable")
 			);
 			assert!(view.opening.is_none());
 			if extra == all {
@@ -7713,8 +7822,8 @@ mod tests {
 		state.user = Some(message.author.clone());
 		state.timeline.insert(message, false, false).unwrap();
 		let mut view = TimelineView {
-			quick_reactions: Some(["🚀", "👍", "❤️"]),
-			double_click_reaction: Some("🎉"),
+			quick_reactions: Some(["ðŸš€", "ðŸ‘", "â¤ï¸"]),
+			double_click_reaction: Some("ðŸŽ‰"),
 			..Default::default()
 		};
 		let mut avatars = crate::avatars::Avatars::default();
@@ -7798,10 +7907,10 @@ mod tests {
 		}
 		let rocket = model::ReactionEmoji {
 			id: None,
-			name: Some("🚀".into()),
+			name: Some("ðŸš€".into()),
 		};
 		assert_eq!(view.reaction.take(), Some((id, Some(rocket.clone()))));
-		assert_eq!(view.quick_reaction_used.take(), Some("🚀"));
+		assert_eq!(view.quick_reaction_used.take(), Some("ðŸš€"));
 
 		// Translate follows the three quick reactions and precedes Add Reaction.
 		for events in click(toolbar.left_center() + egui::vec2(104.0, 0.0), none) {
@@ -7866,7 +7975,7 @@ mod tests {
 					id,
 					Some(model::ReactionEmoji {
 						id: None,
-						name: Some("🎉".into())
+						name: Some("ðŸŽ‰".into())
 					})
 				)),
 				"{pos:?}"
@@ -7921,7 +8030,7 @@ mod tests {
 		let mut short = text_message(42);
 		short.content = "hola".into();
 		assert!(!translation_url(&short).expect("short text fits").1);
-		for content in ["x".repeat(4000), "🦀".repeat(1000)] {
+		for content in ["x".repeat(4000), "ðŸ¦€".repeat(1000)] {
 			let mut message = text_message(42);
 			message.content = content;
 			let (target, truncated) = translation_url(&message).expect("some text should fit");
@@ -9769,7 +9878,7 @@ mod tests {
 		}
 		let ctx = egui::Context::default();
 		let mut view = TimelineView {
-			double_click_reaction: Some("🎉"),
+			double_click_reaction: Some("ðŸŽ‰"),
 			..Default::default()
 		};
 		let mut avatars = crate::avatars::Avatars::default();
@@ -10978,7 +11087,7 @@ impl crate::MessagingUi {
 			..Default::default()
 		};
 		let mut view = TimelineView {
-			quick_reactions: Some(["🚀", "👍", "😂"]),
+			quick_reactions: Some(["ðŸš€", "ðŸ‘", "ðŸ˜‚"]),
 			double_click_reaction: Some(preferences.double_click_emoji()),
 			..Default::default()
 		};
@@ -11072,7 +11181,7 @@ impl crate::MessagingUi {
 				id,
 				Some(model::ReactionEmoji {
 					id: None,
-					name: Some("🎉".into())
+					name: Some("ðŸŽ‰".into())
 				})
 			))
 		);

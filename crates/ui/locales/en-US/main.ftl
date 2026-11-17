@@ -5129,3 +5129,34 @@ moderation-delete-week = Previous 7 days
 moderation-confirm-timeout = Timeout
 # Context: moderation
 moderation-confirm-ban = Ban
+
+local-translate-title = Translate
+local-translate-pending = Translating locally …
+local-translate-detected = Detected: { $language }
+local-translate-copy = Copy
+local-translate-open-browser = Open in browser instead
+local-translate-failed = The local translation service returned an unexpected response.
+local-translate-unreachable = Local translation service unreachable
+
+local-translate-inline-pending = Translating …
+local-translate-inline-from = Translated from { $language }
+local-translate-send-pending = Translating message before sendâ€¦
+local-translate-send-failed = Translation failed; the message was not sent
+local-translate-send-stale = Draft changed while translating; message not sent
+local-translate-settings-title = Translate
+local-translate-settings-incoming = Translate incoming messages into
+local-translate-settings-outgoing = Translate my messages into
+local-translate-settings-auto-incoming = Auto-translate incoming messages
+local-translate-settings-auto-outgoing = Auto-translate before sending
+local-translate-settings-hint = Local service: { $host }
+local-translate-chat-bar = Translate settings
+local-translate-chat-bar-active = Translate settings (auto on)
+
+local-translate-settings-preview = Show preview before sending
+local-translate-preview-title = Translation preview
+local-translate-preview-send = Send translation
+local-translate-preview-cancel = Keep original draft
+
+timeline-message-actions-hide-translation = Hide translation
+
+local-translate-settings-context = Use conversation context (slower)
