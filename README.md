@@ -88,7 +88,7 @@ cd Serein-AI-Translate-Extension
 ./scripts/setup-translate.sh
  ```
 
-Start the engine any time with `scripts\start-translate.ps1` (Windows) or `scripts/start-translate.sh` (macOS/Linux), then run the client. Prefer manual setup? See [docs/translate-setup.md](docs/translate-setup.md).
+The engine runs hidden in the background: no console window, no taskbar button. The wizard's last step installs autostart at login (Task Scheduler on Windows, LaunchAgent on macOS, systemd user service on Linux) so a reboot needs no attention. Check it with `scripts\start-translate.ps1 -Status` (Windows) or `scripts/start-translate.sh --status` (macOS/Linux); a plain run starts the hidden engine immediately. Prefer manual setup? See [docs/translate-setup.md](docs/translate-setup.md).
 
 ## Hardware & model picks
 

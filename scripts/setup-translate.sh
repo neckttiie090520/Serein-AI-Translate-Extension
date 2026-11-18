@@ -5,7 +5,7 @@
 # writes the config consumed by scripts/start-translate.sh.
 set -euo pipefail
 
-CHECK_ONLY=0 SKIP_BUILD=0 START_ENGINE=0
+CHECK_ONLY=0 SKIP_BUILD=0 START_ENGINE=0 AUTOSTART=0 NO_AUTOSTART=0
 MODEL=auto MODEL_FILE="" ENGINE_DIR="" PORT=5050
 usage() { grep "^#" "$0" | sed "s/^# \{0,1\}//"; exit 0; }
 while [ $# -gt 0 ]; do
@@ -13,6 +13,8 @@ while [ $# -gt 0 ]; do
     --check-only) CHECK_ONLY=1 ;;
     --skip-build) SKIP_BUILD=1 ;;
     --start-engine) START_ENGINE=1 ;;
+    --autostart) AUTOSTART=1 ;;
+    --no-autostart) NO_AUTOSTART=1 ;;
     --model) MODEL="$2"; shift ;;
     --model-file) MODEL_FILE="$2"; shift ;;
     --engine-dir) ENGINE_DIR="$2"; shift ;;
@@ -127,9 +129,23 @@ cat > "$CONFIG_PATH" <<EOF
 }
 EOF
 
+step "Background autostart (recommended)"
+if [ "$NO_AUTOSTART" = 1 ]; then
+  tip "skipped (--no-autostart)"
+elif [ "$AUTOSTART" = 1 ]; then
+  "$SCRIPT_DIR/start-translate.sh" --install
+else
+  printf "    Install autostart at login? The engine then runs in the background [Y/n] "
+  read -r answer
+  case "$answer" in ""|[yY]*) "$SCRIPT_DIR/start-translate.sh" --install ;;
+  *) tip "skipped; add it any time:  scripts/start-translate.sh --install" ;;
+  esac
+fi
+
 step "Done"
 tip "config written to $CONFIG_PATH"
-tip "start the engine:  scripts/start-translate.sh   (--stop to stop it)"
+tip "manage:  scripts/start-translate.sh --status / --stop / --uninstall"
+tip "engine log: $DATA_DIR/engine.log"
 tip "then run the client from the repo root:  cargo run --release"
 if [ "$START_ENGINE" = 1 ]; then "$SCRIPT_DIR/start-translate.sh"; fi
 

@@ -23,7 +23,9 @@ param(
     [string]$Model = 'auto',
     [string]$ModelFile = '',
     [string]$EngineDir = '',
-    [int]$Port = 5050
+    [int]$Port = 5050,
+    [switch]$Autostart,
+    [switch]$NoAutostart
 )
 
 $ErrorActionPreference = 'Stop'
@@ -173,9 +175,25 @@ $config = [ordered]@{
 }
 ConvertTo-Json $config | Set-Content -Path $ConfigPath -Encoding ASCII
 
+Write-Step 'Background autostart (recommended)'
+if ($NoAutostart) {
+    Write-Tip 'skipped (-NoAutostart)'
+} elseif ($Autostart) {
+    & (Join-Path $PSScriptRoot 'start-translate.ps1') -Install
+} else {
+    $answer = Read-Host '    Install autostart at login? The engine then runs hidden in the background [Y/n]'
+    if ([string]::IsNullOrWhiteSpace($answer) -or $answer -match '^[yY]') {
+        & (Join-Path $PSScriptRoot 'start-translate.ps1') -Install
+    } else {
+        Write-Tip 'skipped; add it any time:  powershell -File scripts\start-translate.ps1 -Install'
+    }
+}
+
 Write-Step 'Done'
 Write-Tip ('config written to ' + $ConfigPath)
-Write-Tip 'start the engine:  powershell -File scripts\start-translate.ps1'
+Write-Tip 'the engine starts hidden, in the background; it has no window or taskbar button'
+Write-Tip 'manage:  powershell -File scripts\start-translate.ps1 -Status / -Stop / -Uninstall'
+Write-Tip ('engine log: ' + (Join-Path $DataDir 'engine.log'))
 Write-Tip 'then run the client from the repo root:  cargo run --release'
 if ($StartEngine) { & (Join-Path $PSScriptRoot 'start-translate.ps1') }
 

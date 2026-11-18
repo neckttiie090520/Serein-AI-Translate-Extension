@@ -9,8 +9,8 @@ The on-device translation stack is two processes on your machine:
 
 ```bash
 # Windows
-powershell -ExecutionPolicy Bypass -File scripts/setup-translate.ps1
-powershell -ExecutionPolicy Bypass -File scripts/start-translate.ps1
+powershell -ExecutionPolicy Bypass -File scripts/setup-translate.ps1   # offers background autostart at the end
+powershell -ExecutionPolicy Bypass -File scripts/start-translate.ps1  # or start the hidden engine right now
 
 # macOS / Linux
 ./scripts/setup-translate.sh
@@ -20,6 +20,32 @@ powershell -ExecutionPolicy Bypass -File scripts/start-translate.ps1
 cargo run --release
 ```
 
+## Background autostart (no console window)
+
+The engine always runs headless. On Windows it has no window and no taskbar
+button; its output goes to the data directory:
+
+| Platform | Engine log |
+|---|---|
+| Windows | `%LOCALAPPDATA%\SereinTranslate\engine.log` / `engine.err` |
+| Linux | `~/.local/share/serein-translate/engine.log` / `engine.err` |
+| macOS | same paths under `~/Library/Application Support` via launchd's paths in the plist |
+
+To bring the engine back automatically after a reboot â€” the setup wizard offers
+this as its last step â€” run the installer directly:
+
+```bash
+# Windows: Task Scheduler task, fires ~30 s after login (GPU-driver warm-up),
+# launches the engine through wscript so no console ever appears
+powershell -ExecutionPolicy Bypass -File scripts\start-translate.ps1 -Install
+
+# macOS: LaunchAgent (kept alive) / Linux: systemd user service (restart on failure)
+./scripts/start-translate.sh --install
+```
+
+Manage it with `-Status`, `-Stop`, `-Uninstall` (POSIX: `--status`, `--stop`,
+`--uninstall`). A plain run of the script starts the engine hidden immediately,
+autostart or not.
 ## What the wizard does
 
 1. Checks `git`, `cargo` (rustup), `cmake`, `clang` and prints `winget`/`apt`/`brew` install hints for anything missing (`-CheckOnly` / `--check-only` reports without changing anything).
