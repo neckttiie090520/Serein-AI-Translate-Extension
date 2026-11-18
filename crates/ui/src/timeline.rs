@@ -3929,6 +3929,7 @@ impl TimelineView {
 												{
 													let mut clear = false;
 													let inline_fallback = entry.fallback.clone();
+													let entry_target = entry.target.clone();
 													match entry.state {
 													crate::local_translate::InlineState::Pending => {
 														ui.horizontal(|ui| {
@@ -3970,6 +3971,14 @@ impl TimelineView {
 																RichText::new(crate::i18n::translate_args(
 																	"local-translate-inline-from",
 																	&[("language", detected)],
+																))
+																.small()
+																.color(colors.muted),
+															);
+															ui.label(
+																RichText::new(crate::i18n::translate_args(
+																	"local-translate-inline-to",
+																	&[("language", crate::local_translate::language_name(&entry_target))],
 																))
 																.small()
 																.color(colors.muted),

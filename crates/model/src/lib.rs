@@ -33,6 +33,8 @@ pub mod server_invites;
 pub mod server_roles;
 pub mod server_settings;
 pub use reading_preferences::ReadingPreferences;
+mod translate_preferences;
+pub use translate_preferences::TranslatePreferences;
 mod cache_preferences;
 pub use cache_preferences::*;
 pub mod badges;

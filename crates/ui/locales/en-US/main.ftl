@@ -5151,6 +5151,9 @@ local-translate-settings-auto-outgoing = Auto-translate before sending
 local-translate-settings-hint = Local service: { $host }
 local-translate-chat-bar = Translate settings
 local-translate-chat-bar-active = Translate settings (auto on)
+local-translate-chat-bar-targets = Incoming → { $incoming } · Outgoing → { $outgoing }
+local-translate-inline-to = → { $language }
+local-translate-nudge-same-language = Translation matched the original text: the target language is { $language }. Change it in Translate settings (Globe button).
 
 local-translate-settings-preview = Show preview before sending
 local-translate-preview-title = Translation preview

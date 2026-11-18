@@ -1839,6 +1839,10 @@ impl Desktop {
 		}
 		messaging.minimize_to_tray = tray_setting.enabled;
 		app_settings.apply(&mut messaging);
+		app_settings.seed_translate(ui::local_translate::apply_preferences(
+			&cc.egui_ctx,
+			app_settings.current.translate.as_ref(),
+		));
 		#[cfg(feature = "demo")]
 		if demo {
 			// Fixtures never show first-run setup unless a capture asks for it.
@@ -2755,11 +2759,13 @@ impl Desktop {
 			self.diagnostics_save = None;
 		}
 	}
-	fn save_app_preferences(&mut self) {
+	fn save_app_preferences(&mut self, ctx: &egui::Context) {
 		if self.fixture_only || self.state.demo {
 			return;
 		}
 		self.app_settings.observe(&self.messaging);
+		self.app_settings
+			.observe_translate(ui::local_translate::preferences(ctx));
 		self.cache_pending += usize::from(
 			self.app_settings
 				.save(self.cache.as_ref(), self.state.generation),
@@ -6987,7 +6993,7 @@ impl eframe::App for Desktop {
 			frame.set_traffic_lights_position(&ctx, egui::Rangef::new(0.0, title_bar_height), 12.0);
 		}
 		self.sync_customization(&ctx);
-		self.save_app_preferences();
+		self.save_app_preferences(&ctx);
 		self.messaging.updates_save_failed = self.app_settings.state.failed;
 		self.save_reading_preferences(&ctx);
 		self.sync_own_presence(&ctx);

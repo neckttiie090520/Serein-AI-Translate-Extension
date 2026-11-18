@@ -128,7 +128,7 @@ mod text_menu;
 mod thumbhash;
 #[cfg(feature = "demo")]
 pub use polls::debug_poll_check;
-mod local_translate;
+pub mod local_translate;
 mod moderation;
 mod timeline;
 #[cfg(test)]
@@ -3857,11 +3857,33 @@ impl MessagingUi {
                     }
                     if !editing_here && crate::local_translate::enabled() {
                         let settings = crate::local_translate::settings_snapshot(ui.ctx());
-                        let label = if settings.auto_incoming || settings.auto_outgoing {
+                        if let Some(detected) =
+                            crate::local_translate::take_same_language_notice(ui.ctx())
+                        {
+                            let language = crate::local_translate::language_name(&detected);
+                            self.toasts.push(
+                                design::Level::Warning,
+                                crate::i18n::translate_args(
+                                    "local-translate-nudge-same-language",
+                                    &[("language", language)],
+                                ),
+                            );
+                        }
+                        let base = if settings.auto_incoming || settings.auto_outgoing {
                             crate::i18n::translate("local-translate-chat-bar-active")
                         } else {
                             crate::i18n::translate("local-translate-chat-bar")
                         };
+                        let label = format!(
+                            "{base}\n{}",
+                            crate::i18n::translate_args(
+                                "local-translate-chat-bar-targets",
+                                &[
+                                    ("incoming", crate::local_translate::language_name(&settings.incoming_target)),
+                                    ("outgoing", crate::local_translate::language_name(&settings.outgoing_target)),
+                                ],
+                            )
+                        );
                         if icons::button(ui, icons::Icon::Globe, 28.0, &label).clicked() {
                             crate::local_translate::open_settings(ui.ctx());
                         }

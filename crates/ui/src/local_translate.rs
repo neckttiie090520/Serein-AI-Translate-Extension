@@ -12,9 +12,9 @@
 //! - A settings window (chat-bar Globe button) with target languages and both
 //!   automation toggles.
 //!
-//! Settings live in egui memory (persisted by egui across sessions); nothing
-//! is written to disk by this module and no text leaves the machine beyond
-//! the configured local service.
+//! Settings live in egui memory for the session and persist through the
+//! device preferences row (see pply_preferences); no text leaves the machine
+//! beyond the configured local service.
 
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
@@ -134,7 +134,7 @@ const READ_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_MESSAGE_BYTES: usize = 8 * 1024;
 
 #[derive(Clone)]
-pub(crate) struct Translation {
+pub struct Translation {
 	pub(crate) text: String,
 	pub(crate) detected_language: Option<String>,
 }
@@ -161,7 +161,8 @@ pub const LANGUAGES: &[(&str, &str)] = &[
 	("hi", "Hindi"),
 ];
 
-/// Runtime translation settings, persisted by egui across sessions.
+/// Runtime translation settings; seeded from and persisted through the device
+/// preferences row.
 #[derive(Clone)]
 pub struct Settings {
 	pub incoming_target: String,
@@ -222,6 +223,94 @@ pub fn settings_snapshot(ctx: &egui::Context) -> Settings {
 	with_settings(ctx, |settings| {
 		settings.context_messages = clamp_context_messages(settings.context_messages);
 		settings.clone()
+	})
+}
+
+/// English display name for a service language code, or the code itself.
+pub fn language_name(code: &str) -> &str {
+	LANGUAGES
+		.iter()
+		.find(|(known, _)| *known == code)
+		.map(|(_, name)| *name)
+		.unwrap_or(code)
+}
+
+/// A stored target is kept only when it is still selectable, so a row edited
+/// by hand or a language removed from the list falls back to the default.
+fn known_target(code: &str, fallback: &str) -> String {
+	if LANGUAGES.iter().any(|(known, _)| *known == code) {
+		code.to_owned()
+	} else {
+		fallback.to_owned()
+	}
+}
+
+fn preferences_from(settings: &Settings) -> model::TranslatePreferences {
+	model::TranslatePreferences {
+		incoming_target: settings.incoming_target.clone(),
+		outgoing_target: settings.outgoing_target.clone(),
+		auto_incoming: settings.auto_incoming,
+		auto_outgoing: settings.auto_outgoing,
+		outgoing_preview: settings.outgoing_preview,
+		context_aware: settings.context_aware,
+		context_messages: clamp_context_messages(settings.context_messages),
+	}
+}
+
+/// Current settings shaped for the device preferences row.
+pub fn preferences(ctx: &egui::Context) -> model::TranslatePreferences {
+	preferences_from(&settings_snapshot(ctx))
+}
+
+/// Seed the session settings from the device preferences row once at startup
+/// and return the effective values. Unselectable stored targets are replaced
+/// with the default target and the context depth is clamped; None (an older
+/// preferences row) keeps the in-memory defaults.
+pub fn apply_preferences(
+	ctx: &egui::Context,
+	saved: Option<&model::TranslatePreferences>,
+) -> model::TranslatePreferences {
+	let effective = match saved {
+		Some(saved) => {
+			let defaults = Settings::default();
+			Settings {
+				incoming_target: known_target(&saved.incoming_target, &defaults.incoming_target),
+				outgoing_target: known_target(&saved.outgoing_target, &defaults.outgoing_target),
+				auto_incoming: saved.auto_incoming,
+				auto_outgoing: saved.auto_outgoing,
+				outgoing_preview: saved.outgoing_preview,
+				context_aware: saved.context_aware,
+				context_messages: clamp_context_messages(saved.context_messages),
+			}
+		}
+		None => Settings::default(),
+	};
+	with_settings(ctx, |stored| *stored = effective.clone());
+	preferences_from(&effective)
+}
+
+/// Set once per process when a translation came back already in the target
+/// language, so the UI can explain the no-op instead of looking broken.
+static SAME_LANGUAGE_NOTICED: std::sync::atomic::AtomicBool =
+	std::sync::atomic::AtomicBool::new(false);
+
+fn mark_same_language(ctx: &egui::Context, detected: &str) {
+	if !SAME_LANGUAGE_NOTICED.swap(true, std::sync::atomic::Ordering::Relaxed) {
+		ctx.data_mut(|data| {
+			#[expect(deprecated)]
+			data.insert_temp(
+				egui::Id::new("local-translate-same-language"),
+				detected.to_owned(),
+			);
+		});
+	}
+}
+
+/// Take the pending same-language notice, if any; set at most once per run.
+pub fn take_same_language_notice(ctx: &egui::Context) -> Option<String> {
+	ctx.data_mut(|data| {
+		#[expect(deprecated)]
+		data.remove_temp::<String>(egui::Id::new("local-translate-same-language"))
 	})
 }
 
@@ -350,20 +439,24 @@ fn combo_target(ui: &mut egui::Ui, label_key: &str, value: &mut String) {
 // ---------------------------------------------------------------------------
 
 /// State of one message's inline translation.
-pub(crate) enum InlineState {
+pub enum InlineState {
 	Pending,
 	Done(Result<Translation, String>),
 }
 
 /// A renderable snapshot of one message's inline translation.
-pub(crate) struct InlineEntry {
+pub struct InlineEntry {
 	pub state: InlineState,
 	pub fallback: Option<(String, bool)>,
+	/// Target language code requested for this entry, shown with the result.
+	pub target: String,
 }
 
 struct SharedInline {
 	state: Arc<Mutex<InlineState>>,
 	fallback: Option<(String, bool)>,
+	/// Target language code requested for this entry, shown with the result.
+	target: String,
 	/// Message text at translation time, for edit-staleness checks.
 	original: String,
 	/// Insertion order for oldest-first eviction of finished entries.
@@ -432,6 +525,7 @@ pub fn inline_entry(message_id: u64) -> Option<InlineEntry> {
 			InlineState::Done(result) => InlineState::Done(result.clone()),
 		},
 		fallback: shared.fallback.clone(),
+		target: shared.target.clone(),
 	})
 }
 
@@ -458,7 +552,13 @@ fn spawn_inline(
 	fallback: Option<(String, bool)>,
 ) -> bool {
 	let state = Arc::new(Mutex::new(InlineState::Pending));
-	if !reserve_slot(message_id, text, fallback, Arc::clone(&state)) {
+	if !reserve_slot(
+		message_id,
+		text,
+		fallback,
+		target.to_owned(),
+		Arc::clone(&state),
+	) {
 		return false;
 	}
 	let authority = service_authority();
@@ -467,16 +567,17 @@ fn spawn_inline(
 	let repaint = ctx.clone();
 	std::thread::spawn(move || {
 		let mut result = translate_at(&authority, "/translate", &body);
-		// Messages already in the target language are dropped silently: the
-		// renderer removes entries whose error string is empty.
-		if drop_same_language
-			&& let Ok(translation) = &result
-			&& translation
-				.detected_language
-				.as_deref()
-				.is_some_and(|detected| detected.eq_ignore_ascii_case(&target_owned))
+		// A result already in the target language is a no-op: auto-requests drop
+		// it silently (the renderer removes empty errors) and the first one flags
+		// the UI so a manual click that seems to do nothing gets explained.
+		if let Ok(translation) = &result
+			&& let Some(detected) = translation.detected_language.as_deref()
+			&& detected.eq_ignore_ascii_case(&target_owned)
 		{
-			result = Err(String::new());
+			mark_same_language(&repaint, detected);
+			if drop_same_language {
+				result = Err(String::new());
+			}
 		}
 		if let Ok(mut slot) = state.lock() {
 			*slot = InlineState::Done(result);
@@ -497,6 +598,8 @@ fn reserve_slot(
 	text: &str,
 
 	fallback: Option<(String, bool)>,
+
+	target: String,
 
 	state: Arc<Mutex<InlineState>>,
 ) -> bool {
@@ -535,6 +638,8 @@ fn reserve_slot(
 			state,
 
 			fallback,
+
+			target,
 
 			original: text.to_owned(),
 
@@ -909,6 +1014,7 @@ mod tests {
 				id,
 				"text",
 				None,
+				"en".into(),
 				Arc::new(Mutex::new(InlineState::Done(Ok(Translation {
 					text: "done".into(),
 					detected_language: None,
@@ -919,6 +1025,7 @@ mod tests {
 			999,
 			"text",
 			None,
+			"en".into(),
 			Arc::new(Mutex::new(InlineState::Pending)),
 		));
 		let guard = map.lock().expect("local translate");
@@ -944,6 +1051,7 @@ mod tests {
 				id,
 				"text",
 				None,
+				"en".into(),
 				Arc::new(Mutex::new(InlineState::Pending))
 			));
 		}
@@ -952,6 +1060,7 @@ mod tests {
 				999,
 				"text",
 				None,
+				"en".into(),
 				Arc::new(Mutex::new(InlineState::Pending)),
 			),
 			"all-pending map must refuse new work"
@@ -970,6 +1079,7 @@ mod tests {
 			7,
 			"original text",
 			None,
+			"en".into(),
 			Arc::new(Mutex::new(InlineState::Pending)),
 		));
 		assert!(!inline_stale(7, "original text"));
@@ -1028,5 +1138,56 @@ mod tests {
 		inline_map().lock().expect("local translate").clear();
 
 		dismissed().lock().expect("local translate").clear();
+	}
+
+	#[test]
+	fn apply_preferences_validates_stored_targets_and_depth() {
+		let ctx = egui::Context::default();
+		let saved = model::TranslatePreferences {
+			incoming_target: "xx".into(),
+			outgoing_target: "th".into(),
+			auto_incoming: true,
+			outgoing_preview: true,
+			context_messages: 99,
+			..model::TranslatePreferences::default()
+		};
+		let effective = apply_preferences(&ctx, Some(&saved));
+		let snapshot = settings_snapshot(&ctx);
+		assert_eq!(snapshot.outgoing_target, "th");
+		assert_eq!(snapshot.context_messages, 6);
+		assert!(snapshot.auto_incoming && snapshot.outgoing_preview);
+		// An unselectable stored target falls back to the default, never "xx".
+		assert_ne!(snapshot.incoming_target, "xx");
+		assert_eq!(effective, preferences(&ctx));
+	}
+
+	#[test]
+	fn apply_preferences_round_trips_saved_settings() {
+		let ctx = egui::Context::default();
+		let saved = model::TranslatePreferences {
+			incoming_target: "th".into(),
+			outgoing_target: "ko".into(),
+			auto_incoming: true,
+			auto_outgoing: true,
+			outgoing_preview: false,
+			context_aware: true,
+			context_messages: 2,
+		};
+		apply_preferences(&ctx, Some(&saved));
+		assert_eq!(preferences(&ctx), saved);
+	}
+
+	#[test]
+	fn same_language_notice_is_taken_once() {
+		let ctx = egui::Context::default();
+		mark_same_language(&ctx, "en");
+		assert_eq!(take_same_language_notice(&ctx), Some("en".to_owned()));
+		assert_eq!(take_same_language_notice(&ctx), None);
+	}
+
+	#[test]
+	fn language_name_falls_back_to_the_code() {
+		assert_eq!(language_name("th"), "Thai");
+		assert_eq!(language_name("zz"), "zz");
 	}
 }

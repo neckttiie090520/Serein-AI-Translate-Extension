@@ -111,12 +111,16 @@ cd Serein-AI-Translate-Extension
 cargo run --release
 ```
 
+> **Windows:** close the running app before `cargo run`/`cargo build`. The linker
+> cannot replace `serein.exe` while the app is running and the build fails at the
+> final link step with a file-in-use error.
+
 Optional environment knobs:
 
 | Variable | Default | Purpose |
 |---|---|---|
 | `SEREIN_TRANSLATE_HOST` | `127.0.0.1:5050` | LTEngine address |
-| `SEREIN_TRANSLATE_TARGET` | `en` | default target language |
+| `SEREIN_TRANSLATE_TARGET` | `en` | first-run default target language; your pick in the Globe settings persists across restarts |
 | `SEREIN_LOCAL_TRANSLATE` | `1` | set `0` to fall back to browser links |
 
 Then open the **⇄ Globe** button in the chat bar to pick languages and toggles.

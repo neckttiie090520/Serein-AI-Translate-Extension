@@ -106,6 +106,10 @@ pub struct AppPreferences {
 	/// First-run setup finished or skipped; absent in older preferences, so existing installs
 	/// see it once too.
 	pub setup_done: bool,
+	/// In-app local translation settings; absent in older preferences, which keep the
+	/// in-memory defaults until a translate setting is changed.
+	#[serde(default)]
+	pub translate: Option<model::TranslatePreferences>,
 }
 impl Default for AppPreferences {
 	fn default() -> Self {
@@ -151,6 +155,7 @@ impl Default for AppPreferences {
 			time_format: Default::default(),
 			diagnostics_log: diagnostics::Level::Off,
 			setup_done: false,
+			translate: None,
 		}
 	}
 }
@@ -179,6 +184,7 @@ impl AppPreferences {
 			&& [&self.voice_input, &self.voice_output]
 				.into_iter()
 				.all(|value| value.as_ref().is_none_or(|value| value.len() <= 1024))
+			&& self.translate.as_ref().is_none_or(|value| value.is_valid())
 	}
 }
 
@@ -2181,6 +2187,43 @@ mod tests {
 				collapsed
 			);
 		}
+		std::fs::remove_dir_all(root).unwrap();
+	}
+	#[test]
+	fn translate_preferences_persist_across_reopens_and_absent_rows_default() {
+		let legacy: AppPreferences = serde_json::from_str("{}").unwrap();
+		assert_eq!(legacy.translate, None);
+		let saved = model::TranslatePreferences {
+			incoming_target: "th".into(),
+			context_messages: 6,
+			..model::TranslatePreferences::default()
+		};
+		let root = std::env::temp_dir().join(format!("serein-translate-{}", std::process::id()));
+		std::fs::create_dir(&root).unwrap();
+		let path = root.join("preferences.sqlite3");
+		{
+			let store = LocalStore::open(&path).unwrap();
+			let mut preferences = store.app_preferences().unwrap();
+			assert_eq!(preferences.translate, None);
+			preferences.translate = Some(saved.clone());
+			store.save_app_preferences(&preferences).unwrap();
+		}
+		{
+			let store = LocalStore::open(&path).unwrap();
+			assert_eq!(store.app_preferences().unwrap().translate, Some(saved));
+		}
+		// Older rows load with defaults, including the English fallback target
+		// (never an empty string), and a partial row keeps its saved values.
+		assert_eq!(
+			serde_json::from_str::<model::TranslatePreferences>("{}").unwrap(),
+			model::TranslatePreferences::default()
+		);
+		let partial: model::TranslatePreferences =
+			serde_json::from_str(r#"{"auto_incoming":true}"#).unwrap();
+		assert!(partial.auto_incoming);
+		assert_eq!(partial.incoming_target, "en");
+		assert_eq!(partial.outgoing_target, "en");
+		assert_eq!(partial.context_messages, 4);
 		std::fs::remove_dir_all(root).unwrap();
 	}
 	#[test]

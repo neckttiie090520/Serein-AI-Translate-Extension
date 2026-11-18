@@ -8,6 +8,9 @@ pub struct Settings {
 	pub current: AppPreferences,
 	pub loaded: bool,
 	pub state: crate::toggle_setting::Settings,
+	/// Effective translate settings seeded into egui this session; only later
+	/// changes are marked for persistence.
+	pub translate_baseline: model::TranslatePreferences,
 }
 
 impl Settings {
@@ -87,6 +90,7 @@ impl Settings {
 			time_format: ui.time_format,
 			diagnostics_log: ui.diagnostics_log,
 			setup_done: !ui.setup_pending,
+			translate: self.current.translate.clone(),
 		};
 		if value != self.current {
 			self.state.touched = true;
@@ -97,6 +101,26 @@ impl Settings {
 			}
 		}
 	}
+	/// Records the translate settings seeded into egui so only later changes persist.
+	pub fn seed_translate(&mut self, effective: model::TranslatePreferences) {
+		self.translate_baseline = effective;
+	}
+
+	/// Persists translate settings that changed since seeding.
+	pub fn observe_translate(&mut self, snapshot: model::TranslatePreferences) {
+		if snapshot == self.translate_baseline {
+			return;
+		}
+		self.translate_baseline = snapshot;
+		// Unreadable preferences must not turn session settings into a write.
+		if !self.loaded || self.current.translate.as_ref() == Some(&self.translate_baseline) {
+			return;
+		}
+		self.current.translate = Some(self.translate_baseline.clone());
+		self.state.touched = true;
+		self.state.dirty = true;
+	}
+
 	/// Restores saved device preferences, including the opt-in composer conversion.
 	pub fn apply(&self, ui: &mut ui::MessagingUi) {
 		let value = &self.current;
@@ -637,5 +661,76 @@ mod tests {
 		assert_eq!(rest.observe(moving, None, now), Observation::Pending);
 		assert_eq!(rest.take_pending(), Some(moving));
 		assert_eq!(rest.take_pending(), None);
+	}
+
+	#[test]
+	fn observe_keeps_saved_translate_preferences_without_user_edits() {
+		let saved = model::TranslatePreferences {
+			incoming_target: "th".into(),
+			..model::TranslatePreferences::default()
+		};
+		let mut settings = Settings {
+			current: AppPreferences {
+				translate: Some(saved.clone()),
+				..AppPreferences::default()
+			},
+			loaded: true,
+			..Settings::default()
+		};
+		let mut ui = ui::MessagingUi::default();
+		let defaults = AppPreferences::default();
+		ui.notifications_enabled = defaults.notifications_enabled;
+		ui.transparency = defaults.transparency;
+		ui.blur = defaults.blur;
+		ui.preload_on_hover = defaults.preload_on_hover;
+		ui.auto_idle = defaults.auto_idle;
+		ui.custom_title_bar = defaults.custom_title_bar;
+		ui.setup_pending = !defaults.setup_done;
+		settings.observe(&ui);
+		assert_eq!(settings.current.translate, Some(saved));
+		assert!(!settings.state.dirty, "no user edit must not mark a save");
+	}
+
+	#[test]
+	fn observe_translate_persists_only_post_seed_changes() {
+		let mut settings = Settings {
+			loaded: true,
+			..Settings::default()
+		};
+		let seeded = model::TranslatePreferences::default();
+		settings.seed_translate(seeded.clone());
+		settings.observe_translate(seeded.clone());
+		assert_eq!(settings.current.translate, None);
+		assert!(!settings.state.dirty);
+		let changed = model::TranslatePreferences {
+			incoming_target: "th".into(),
+			..seeded
+		};
+		settings.observe_translate(changed.clone());
+		assert_eq!(settings.current.translate, Some(changed.clone()));
+		assert!(settings.state.dirty && settings.state.touched);
+		// A repeat of the same snapshot is not another edit.
+		settings.observe_translate(changed);
+		assert_eq!(
+			settings
+				.current
+				.translate
+				.as_ref()
+				.map(|value| value.incoming_target.as_str()),
+			Some("th")
+		);
+	}
+
+	#[test]
+	fn observe_translate_skips_writes_without_a_loaded_row() {
+		let mut settings = Settings::default();
+		assert!(!settings.loaded);
+		settings.seed_translate(model::TranslatePreferences::default());
+		settings.observe_translate(model::TranslatePreferences {
+			incoming_target: "ko".into(),
+			..model::TranslatePreferences::default()
+		});
+		assert_eq!(settings.current.translate, None);
+		assert!(!settings.state.dirty);
 	}
 }

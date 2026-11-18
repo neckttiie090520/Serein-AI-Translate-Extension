@@ -5124,6 +5124,9 @@ local-translate-settings-auto-outgoing = 보내기 전 자동 번역
 local-translate-settings-hint = 로컬 서비스: { $host }
 local-translate-chat-bar = 번역 설정
 local-translate-chat-bar-active = 번역 설정 (자동 켜짐)
+local-translate-chat-bar-targets = 수신 → { $incoming } · 발신 → { $outgoing }
+local-translate-inline-to = → { $language }
+local-translate-nudge-same-language = 번역 결과가 원문과 같아요: 대상 언어가 { $language }로 되어 있습니다. 지구본 버튼의 번역 설정에서 변경하세요.
 
 local-translate-settings-preview = 보내기 전 미리보기 표시
 local-translate-preview-title = 번역 미리보기
