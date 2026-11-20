@@ -32,11 +32,13 @@ Every Discord translation plugin today (Vencord Translate & friends) ships your 
 
 ## Features
 
-- **Inline translation** — click ⇄ on any message; the translation renders under it through the full markdown pipeline, with a *Translated from {language}* caption and a one-click hide in the hover toolbar.
-- **Auto-translate incoming** — new messages translate themselves. Messages already in your target language are detected and skipped silently.
+- **One-click pause.** The chat-bar Globe is a master switch: one click pauses the whole feature (the icon dims while off), right-click opens settings. The state persists across restarts.
+- **Inline translation** — click ⇄ on any message; the translation renders under it through the full markdown pipeline, with a *→ {target language}* caption and a one-click hide in the hover toolbar.
+- **Auto-translate incoming** — new messages translate themselves. Messages already in your target language are detected and skipped silently; links, emoji, credentials and addresses never hit the model.
 - **Translate before sending** — two modes: send immediately, or get a **preview card** above the composer with *Send translation* / *Keep original draft*.
-- **Context-aware mode** — the last 6 channel messages are passed along, so the model resolves *"เจอกันพรุ่งนี้นะ"* vs *"see you there"* correctly based on who said what. Toggle it on when nuance matters; off when speed does.
-- **Settings window in the chat bar** — target languages, incoming/outgoing toggles, preview and context switches, live service indicator.
+- **Context-aware mode** — the last 2, 4 or 6 channel messages (setting) are passed along, so the model resolves *"เจอกันพรุ่งนี้นะ"* vs *"see you there"* correctly based on who said what. Toggle it on when nuance matters; off when speed does.
+- **Nothing sent in silence.** A spinner while translating, a muted *not translated* note on skipped messages, and explicit composer statuses for translating / kept-draft / sent — every state is visible.
+- **Settings window in the chat bar** — master switch, target languages, incoming/outgoing toggles, preview and context switches, live service indicator.
 - **Sandboxed extension API** — plugins can request translations through a validated host-mediated action; the Wasm sandbox keeps its no-network guarantee.
 
 ![UX preview — inline Discord message translation with auto-translate and pre-send preview cards](docs/assets/ux-preview.svg)
@@ -63,12 +65,6 @@ Quality holds across TH↔EN, JP→EN; internet slang is the known weak spot of 
 3. **gemma3-4b** runs on your GPU via Vulkan. Nothing — not one byte of message text — ever leaves localhost.
 
 ## Getting started
-
-### 1. Run the translation engine
-
-```bash
-# LTEngine — LibreTranslate's llama.cpp server (Vulkan build)
-```
 
 ### 1. One-command setup
 
@@ -106,7 +102,6 @@ Comfortable minimums for the whole stack: Windows 10+/Linux/macOS, 8 GB RAM, ~10
 ### 2. Build & run the client
 
 ```bash
-git clone https://github.com/neckttiie090520/Serein-AI-Translate-Extension
 cd Serein-AI-Translate-Extension
 cargo run --release
 ```
@@ -141,15 +136,19 @@ In the settings window: pick **incoming target** + turn on *auto-translate incom
 ## Engineering notes
 
 - **No-dependency HTTP client.** The UI crate gained zero deps: translation calls are hand-rolled HTTP/1.1 POSTs on `std::thread`, JSON escaping/unescape included — egui stays render-loop-clean, results arrive via repaint requests.
-- **Bounded work pool.** At most 24 concurrent inline translations; finished entries are evicted oldest-first, all-pending state refuses new work instead of queueing silently.
+- **Bounded work pool.** At most 24 concurrent inline translations; finished entries are evicted oldest-first, all-pending state refuses new work instead of queueing silently. Before-send translations hold a single slot — a second attempt reports *busy* and keeps the draft.
+- **Skip classification before inference.** A pure function classifies messages with no natural-language value — non-verbal tokens (URLs, mentions, channels, emoji), bare addresses, and credential shapes with word-boundary and run-length rules — before any request is built. High precision over recall: a normal sentence is never skipped, and key material never reaches the model even mid-sentence.
 - **Same-language detection without a second model.** The engine returns the detected language; entries whose detection matches the target are dropped invisibly in auto mode, but manual clicks always show the result — silence should never look like a dead button.
 - **Stale-translation guard.** Messages edited after translation are detected by normalized-text comparison and re-requested automatically.
+- **Persisted, validated settings.** Translate settings live in the bounded `app_preferences` SQLite row; on load, unknown language codes fall back to the default and the context depth clamps to the offered choices — hand-edited or legacy rows can never poison the UI.
 - **Extension sandbox preserved.** `RequestTranslation` is an Apply-consented host action — the plugin never gains network capability, the host does the fetch and re-invokes the plugin with the result.
+
+Deep dives: [translate architecture](docs/translate-architecture.md) · [setup & operations reference](docs/translate-setup.md) · [building and releasing the fork](docs/building.md).
 
 ## Roadmap
 
 - [ ] Prebuilt binaries via GitHub Actions (Windows / Linux / macOS)
-- [ ] Language auto-detection heuristics before the request (skip obvious targets client-side)
+- [x] Client-side skip heuristics before the request (links, emoji, credentials — shipped in 0.3.0)
 - [ ] Upstream PR: `RequestTranslation` as a generic extension-SDK action
 
 ## FAQ

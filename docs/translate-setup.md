@@ -1,9 +1,12 @@
-# Translation setup reference
+# Translation setup and operations
 
 The on-device translation stack is two processes on your machine:
 
 1. **Serein** (this repo) — the Discord client. Talks to the engine over localhost HTTP only.
-2. **[LTEngine](https://github.com/LibreTranslate/LTEngine)** — LibreTranslate's Rust llama.cpp server, built by the setup wizard with the `/translate-context` endpoint patched in (this fork uses it for context-aware mode; without the patch every other feature still works and context-aware falls back to plain `/translate`).
+2. **[LTEngine](https://github.com/LibreTranslate/LTEngine)** — LibreTranslate's Rust llama.cpp server, built by the setup wizard with the `/translate-context` endpoint patched in (used for context-aware mode; without the patch every other feature still works and context-aware falls back to plain `/translate`).
+
+For the engineering design see [translate-architecture.md](translate-architecture.md).
+For building the client from source see [building.md](building.md).
 
 ## Quick start
 
@@ -20,79 +23,102 @@ powershell -ExecutionPolicy Bypass -File scripts/start-translate.ps1  # or start
 cargo run --release
 ```
 
-## Background autostart (no console window)
+The wizard checks prerequisites, detects GPU VRAM, builds the patched engine, downloads
+an auto-picked gemma3 GGUF (override with `-Model`/`--model`), and writes the launcher
+config to the platform data directory (`%LOCALAPPDATA%\SereinTranslate` on Windows,
+`~/.config/SereinTranslate` elsewhere).
 
-The engine always runs headless. On Windows it has no window and no taskbar
-button; its output goes to the data directory:
+## Background autostart
 
-| Platform | Engine log |
-|---|---|
-| Windows | `%LOCALAPPDATA%\SereinTranslate\engine.log` / `engine.err` |
-| Linux | `~/.local/share/serein-translate/engine.log` / `engine.err` |
-| macOS | same paths under `~/Library/Application Support` via launchd's paths in the plist |
+The engine always runs headless — no console window, no taskbar button. On Windows it
+has no window at all (verified via `MainWindowHandle = 0`).
 
-To bring the engine back automatically after a reboot â€” the setup wizard offers
-this as its last step â€” run the installer directly:
+| OS | Mechanism | Notes |
+|---|---|---|
+| Windows | Task Scheduler task `SereinTranslateEngine`, logon trigger +30 s | Per-user, no admin rights; launched through a wscript wrapper so nothing flashes; restarts up to 3 times on failure |
+| Linux | systemd user unit `serein-translate.service` | `systemctl --user enable --now serein-translate` |
+| macOS | LaunchAgent `com.serein.translate.plist` | KeepAlive enabled |
+
+Lifecycle commands:
+
+```powershell
+# Windows
+powershell -ExecutionPolicy Bypass -File scripts/start-translate.ps1 -Status
+powershell -ExecutionPolicy Bypass -File scripts/start-translate.ps1 -Stop
+powershell -ExecutionPolicy Bypass -File scripts/start-translate.ps1 -Install    # (re)install autostart
+powershell -ExecutionPolicy Bypass -File scripts/start-translate.ps1 -Uninstall
+```
 
 ```bash
-# Windows: Task Scheduler task, fires ~30 s after login (GPU-driver warm-up),
-# launches the engine through wscript so no console ever appears
-powershell -ExecutionPolicy Bypass -File scripts\start-translate.ps1 -Install
-
-# macOS: LaunchAgent (kept alive) / Linux: systemd user service (restart on failure)
+# macOS / Linux
+./scripts/start-translate.sh --status
+./scripts/start-translate.sh --stop
 ./scripts/start-translate.sh --install
+./scripts/start-translate.sh --uninstall
 ```
 
-Manage it with `-Status`, `-Stop`, `-Uninstall` (POSIX: `--status`, `--stop`,
-`--uninstall`). A plain run of the script starts the engine hidden immediately,
-autostart or not.
-## What the wizard does
+Engine logs rotate at `%LOCALAPPDATA%\SereinTranslate\engine.log` (5 MB, one `.old`
+generation kept); `autostart.log` records task launches.
 
-1. Checks `git`, `cargo` (rustup), `cmake`, `clang` and prints `winget`/`apt`/`brew` install hints for anything missing (`-CheckOnly` / `--check-only` reports without changing anything).
-2. Clones LTEngine (`--depth 1`) into a sibling `LTEngine/` directory when one exists, otherwise into `%LOCALAPPDATA%\SereinTranslate\LTEngine` (`~/.local/share/serein-translate/LTEngine`).
-3. Applies [scripts/ltengine-translate-context.patch](../scripts/ltengine-translate-context.patch) — 86 added lines implementing `/translate-context`. Skipped cleanly if upstream already ships the endpoint or the patch no longer applies.
-4. Builds with `cargo build --release --features vulkan` (`metal` on macOS, `cuda` is a manual change). First build compiles llama.cpp: 10-30 minutes.
-5. Downloads one gemma3 GGUF (Q4_K_M) from Hugging Face mirrors that need no account, sized to detected VRAM via `nvidia-smi`, and writes the launcher config.
+## Using it (30 seconds)
 
-## Flags
+- **Globe button in the chat bar** — one click pauses or resumes translation for the
+  whole app (the icon dims while off). Right-click opens settings.
+- **Settings window** — master switch, incoming/outgoing target languages, auto
+  toggles, preview-before-send, context-aware mode with 2/4/6 message depth.
+  Everything persists across restarts.
+- **Inline** — click ⇄ on any message. A spinner shows while translating; the result
+  renders under the message with a `→ {language}` chip.
+- **Skipped messages** — links-only, emoji-only, mentions-only, bare email addresses,
+  and anything shaped like a key or credential are never sent to the model. A manual
+  attempt shows a muted *not translated* note instead of failing silently.
+- **Before sending** — with auto-outgoing on, the composer shows what it is doing:
+  *translating before send*, *draft kept* (another translation still running),
+  *sending as-is* (nothing to translate), or *sent the translated message*.
 
-| Flag (ps1 / sh) | Effect |
-|---|---|
-| `-CheckOnly` / `--check-only` | environment report only, no changes |
-| `-Model <name>` / `--model <name>` | `gemma3-1b`, `4b`, `12b`, `27b` — default: auto by VRAM |
-| `-ModelFile <path>` / `--model-file <path>` | use an existing .gguf |
-| `-EngineDir <path>` / `--engine-dir <path>` | existing LTEngine checkout to reuse |
-| `-SkipBuild` / `--skip-build` | reuse the previous engine binary |
-| `-Port <n>` / `--port <n>` | engine port, default 5050 |
-| `-StartEngine` / `--start-engine` | launch the engine right after setup |
-| `-Stop` / `--stop` (start-translate) | stop the engine process |
+## Verifying the engine by hand
 
-## Config and data locations
-
-- Windows: `%LOCALAPPDATA%\SereinTranslate\config.json`, models under `models\`
-- Linux/macOS: `~/.local/share/serein-translate/config.json`, models under `models/`
-
-```json
-{
-  "engineExe": ".../ltengine(.exe)",
-  "modelFile": ".../gemma-3-4b-it-Q4_K_M.gguf",
-  "host": "127.0.0.1",
-  "port": 5050,
-  "model": "gemma3-4b"
-}
+```bash
+curl -s http://127.0.0.1:5050/translate \
+  -H 'Content-Type: application/json' \
+  -d '{"q":"hello how are you","source":"auto","target":"th"}'
 ```
 
-The client reads `SEREIN_TRANSLATE_HOST` (default `127.0.0.1:5050`) and `SEREIN_TRANSLATE_TARGET` (default of both incoming and outgoing targets). `SEREIN_LOCAL_TRANSLATE=0` falls back to the legacy browser-link translation.
+A JSON object with a translation within a few seconds means the engine is healthy; the
+request field is `q` (not `text`) and `source` should be `"auto"`.
+
+## Environment variables
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SEREIN_TRANSLATE_HOST` | `127.0.0.1:5050` | Engine address |
+| `SEREIN_TRANSLATE_TARGET` | `en` | First-run default target; later changes persist in settings |
+| `SEREIN_LOCAL_TRANSLATE` | `1` | `0` disables the feature and falls back to browser-link translation |
+| `SEREIN_UPDATE_REPO` | this repository | GitHub `owner/name` the in-app updater tracks |
 
 ## Troubleshooting
 
-- **Build fails on Windows** — install VS 2022 Build Tools with the *Desktop development with C++* workload, plus LLVM and CMake; the repo root `serein-cargo.cmd` pattern (vcvars + `LIBCLANG_PATH`) shows the environment the build needs.
-- **Vulkan feature fails** — install GPU driver + Vulkan runtime, or Linux `libvulkan-dev`/`shaderc`. CPU fallback: build without features and run `ltengine --cpu`.
-- **Model download interrupted** — rerun the wizard; `curl -C -` resumes.
-- **Port 5050 busy** — `-Port 5060` and set `SEREIN_TRANSLATE_HOST=127.0.0.1:5060` before starting the client.
-- **Context-aware says endpoint missing** — your engine was built without the patch; rerun the wizard (it patches automatically on a fresh clone).
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Clicking translate opens a browser link instead of translating | The running client predates the fork's translation layer (e.g. an updater or installer replaced the exe) | Re-deploy the fork build ([building.md](building.md), "Deploying to a local machine") |
+| Result looks identical to the original (silent no-op) | Target language equals the message language | Pick the right target in settings — the first occurrence also raises a one-time notice; settings persist since 0.2.0 |
+| Spinner never resolves | Engine not running or still loading the model into VRAM | `-Status` / `--status`; start it; wait ~30–60 s after login for the model to warm up |
+| Engine died after a reboot (pre-0.2.0 installs) | Old broken autostart (Windows PowerShell 5.1 VBS bug) | Update the repo, then `-Install` to reinstall the fixed task |
+| `cargo build` fails at the final link on Windows | The app is running and Windows locks `serein.exe` | Close the app, rebuild |
+| Build fails with `rustc … is not supported` | A system Rust shadows the pinned toolchain | Prepend the rustup toolchain's `bin` to `PATH` ([building.md](building.md)) |
+| Everything works but the taskbar shows a console window | Engine started manually without the scripts | Stop it and start via the scripts (hidden start is the default) |
+| Model downloads again on another user account | Per-user model directory | Re-run the wizard for that account, or point `config.json`'s `modelFile` at a shared copy |
 
-## Licensing note
+## Uninstall
 
-LTEngine is AGPL-3.0 and runs as a separate process — Serein never links it. The context patch is therefore also AGPL-3.0 and lives in this repo only as a build-time patch applied to LTEngine's own checkout.
+1. `start-translate -Uninstall` (or `--uninstall`) removes autostart and stops the engine.
+2. Delete the data directory (`%LOCALAPPDATA%\SereinTranslate` / `~/.config/SereinTranslate`)
+   to remove the model and logs.
+3. The client-side settings row is removed with the app's own data.
 
+## Security notes
+
+- The engine binds `127.0.0.1` only; message text never leaves the machine.
+- Credential-shaped content (API keys, tokens, private keys, labelled passwords) is
+  skipped before any request is built and never handed to the model.
+- In-app updates verify `SHA256SUMS.txt` and only install releases of this repository.

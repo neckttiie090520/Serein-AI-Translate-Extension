@@ -7,6 +7,63 @@ in that repository; this file covers the translation layer and fork-specific wor
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions
 are fork milestones, not upstream releases.
 
+## [0.3.0] - 2026-11-20
+
+### Added
+
+- **Pre-translation skip classifier.** Messages that carry no natural language never reach
+  the engine: bare links, `@mentions`, `#channels` and emoji-only text, bare email
+  addresses, and high-confidence credential shapes — `sk-…`, `ghp_…`, `xox?-…`, `AKIA…`,
+  private-key blocks, labelled `password:`/`token:` values, and long opaque hex/base64
+  runs. Manual attempts render a muted *not translated* note (the button never looks
+  dead); auto-translate skips silently. Credential detection runs before anything else,
+  so key material is never handed to the model even inside otherwise normal sentences.
+- **Visible status everywhere.** Before-send translation now returns an explicit
+  `SendOutcome { Started, Busy, Skipped }`: the composer reports *translating before
+  send*, *draft kept — a translation is still running*, or *nothing to translate —
+  sending as-is*, and confirms with *sent the translated message*. Inline results show a
+  spinner while pending and a muted skip note when classified out.
+- **One-click master toggle.** Clicking the chat-bar Globe now pauses the whole feature —
+  the icon dims while off (`icons::toggle`), right-click opens settings, and the tooltip
+  explains both in every state. The switch persists with the rest of the settings.
+
+### Changed
+
+- Settings window: the master switch grays out all sub-settings while translation is off,
+  matching the existing nested-disable pattern used for auto-outgoing options.
+- Inline results show only the reliable target-language chip; the detected-source chip —
+  which surfaced the engine's frequent mis-detections (e.g. English read as Danish) as if
+  they were fact — was removed.
+- `TranslatePreferences` gained `enabled` with serde default `true`; existing preference
+  rows load unchanged with translation on.
+
+## [0.2.0] - 2026-11-20
+
+### Added
+
+- **Settings persistence across restarts.** Translate settings moved from volatile egui
+  memory into the bounded `app_preferences` SQLite row (`model::TranslatePreferences`).
+  Stored targets are validated against the selectable language list on load (unknown
+  codes fall back to the default; hand-edited rows cannot poison the UI) and the context
+  depth is clamped to the offered 2/4/6 values. Rows written before this version load
+  with defaults.
+- **Fork-pinned update channel.** The in-app updater tracks releases of this repository
+  only (`neckttiie090520/Serein-AI-Translate-Extension`), verified against the published
+  `SHA256SUMS.txt`. Upstream releases can never silently replace a local-translation
+  build. Override with `SEREIN_UPDATE_REPO` if you host your own fork releases.
+- **Background autostart that survives reboots.** The engine starts hidden at login —
+  Task Scheduler via a wscript wrapper on Windows (no console flash, per-user, no admin
+  rights), a systemd user unit on Linux, a LaunchAgent on macOS — with
+  `-Status/-Stop/-Install/-Uninstall` lifecycle commands and restart-on-failure policy.
+
+### Fixed
+
+- `start-translate.ps1` generated syntactically broken VBS launchers on Windows
+  PowerShell 5.1 (string concatenation inside `@()` is parsed as three array elements),
+  and the scheduled task killed the engine's process tree the moment the launcher
+  process exited — so autostart had never actually worked. Both replaced with a
+  waiting launcher and a 3-attempt restart policy.
+
 ## [0.1.0] - 2026-11-17
 
 ### Added
