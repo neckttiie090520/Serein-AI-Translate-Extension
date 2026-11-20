@@ -64,11 +64,14 @@ gh workflow run ci.yml --ref main -R neckttiie090520/Serein-AI-Translate-Extensi
 2. **Update `CHANGELOG.md`** — newest entry first, Keep a Changelog sections.
 3. **Gates green**, then build: `cargo build --release -p serein` (≈10 min on a
    dev laptop).
-4. **Package.** Assets must match the updater contract *exactly*:
-   - `serein-v{tag}-Windows-X64.zip` containing the exe,
-   - `SHA256SUMS.txt` with one line `lowercase-sha256␣␣serein-v{tag}-Windows-X64.zip`
-     (sha256sum format, two spaces, no `./` prefix).
-5. **Tag and publish.**
+4. **Package with the script.** `powershell -File scripts\package-release.ps1 -Version {tag}`
+   builds `serein-v{tag}-Windows-X64.zip` and `SHA256SUMS.txt` and verifies the layout.
+   The zip must contain the full extracted-package layout - `serein.exe`, `README.md`,
+   `THIRD_PARTY_NOTICES.md`, `LICENSE-MIT`, `LICENSE-APACHE` and a `licenses/` folder -
+   because the updater's installation check refuses exe-only folders ("Run Serein from
+   an extracted release package") and the repack step only accepts top-level paths on
+   its allowlist. Never hand-roll an exe-only zip again; that is exactly what
+   v0.2.0/v0.3.0 shipped and it cannot install.5. **Tag and publish.**
    ```bash
    git tag v{tag} && git push fork v{tag}
    gh release create v{tag} -R neckttiie090520/Serein-AI-Translate-Extension \

@@ -38,7 +38,7 @@ has no window at all (verified via `MainWindowHandle = 0`).
 | Windows | Task Scheduler task `SereinTranslateEngine`, logon trigger +30 s | Per-user, no admin rights; launched through a wscript wrapper so nothing flashes; restarts up to 3 times on failure |
 | Linux | systemd user unit `serein-translate.service` | `systemctl --user enable --now serein-translate` |
 | macOS | LaunchAgent `com.serein.translate.plist` | KeepAlive enabled |
-
+| Update refuses to install ("Run Serein from an extracted release package") | Install folder is missing `THIRD_PARTY_NOTICES.md` or `licenses/` (e.g. it was created by copying a bare exe). | Re-extract the v0.3.1+ zip over the install folder, or copy `THIRD_PARTY_NOTICES.md`, `LICENSE-MIT`, `LICENSE-APACHE` and the `licenses/` folder from the repo next to `serein.exe`. |
 Lifecycle commands:
 
 ```powershell

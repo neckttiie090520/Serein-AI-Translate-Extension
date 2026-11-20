@@ -44,6 +44,15 @@ fn pending() -> &'static Mutex<Vec<PendingTranslation>> {
 	PENDING.get_or_init(|| Mutex::new(Vec::new()))
 }
 
+/// Plain-English skip reason for the extension panel; the plugin surface has
+/// no access to the host's localized labels.
+fn extension_skip_reason(kind: SkipKind) -> String {
+	match kind {
+		SkipKind::LinksEmojiMentionsOnly => "Not translated: links, emoji and mentions only".into(),
+		SkipKind::Credential => "Not translated: credential-like content".into(),
+		SkipKind::EmailAddress => "Not translated: email address".into(),
+	}
+}
 /// Host side of the extension `RequestTranslation` action: run the local
 /// service call on a background thread and hand the result to the next frame's
 /// extension pump, which re-invokes the plugin's panel action with it.
@@ -55,6 +64,21 @@ pub(crate) fn spawn_extension_translation(
 	target: String,
 ) {
 	if pending().lock().expect("local translate").len() >= 8 {
+		return;
+	}
+	// Same policy as the native paths: content with nothing to translate (or
+	// credential-shaped) never reaches the model; the plugin gets a note.
+	if let Some(kind) = skip_kind(text.trim()) {
+		pending()
+			.lock()
+			.expect("local translate")
+			.push(PendingTranslation {
+				plugin,
+				action,
+				target,
+				outcome: Some(Err(extension_skip_reason(kind))),
+			});
+		ctx.request_repaint();
 		return;
 	}
 	let record = PendingTranslation {
@@ -1559,5 +1583,41 @@ mod tests {
 			InlineState::Skipped(SkipKind::LinksEmojiMentionsOnly)
 		);
 		clear_inline(701);
+	}
+	#[test]
+	fn extension_requests_skip_non_translatable_text() {
+		let _guard = TEST_LOCK
+			.lock()
+			.unwrap_or_else(|poisoned| poisoned.into_inner());
+		pending().lock().expect("local translate").clear();
+		let ctx = egui::Context::default();
+		spawn_extension_translation(
+			ctx.clone(),
+			"plugin".into(),
+			"action".into(),
+			"https://example.com/only".into(),
+			"th".into(),
+		);
+		let finished = take_finished_translations();
+		assert_eq!(finished.len(), 1);
+		let err = finished[0].result.clone().unwrap_err();
+		assert!(err.contains("link"), "reason should mention links: {err}");
+		assert!(take_finished_translations().is_empty());
+
+		spawn_extension_translation(
+			ctx,
+			"plugin".into(),
+			"action".into(),
+			"password: hunter2hunter2".into(),
+			"th".into(),
+		);
+		let finished = take_finished_translations();
+		assert_eq!(finished.len(), 1);
+		let err = finished[0].result.clone().unwrap_err();
+		assert!(
+			err.contains("credential"),
+			"reason should mention credentials: {err}"
+		);
+		pending().lock().expect("local translate").clear();
 	}
 }

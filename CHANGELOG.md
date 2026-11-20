@@ -7,6 +7,25 @@ in that repository; this file covers the translation layer and fork-specific wor
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions
 are fork milestones, not upstream releases.
 
+## [0.3.1] - 2026-11-20
+
+### Fixed
+
+- **Release packages install correctly through the in-app updater.** Earlier
+  fork zips shipped the exe alone, which the updater's installation check
+  refuses ("Run Serein from an extracted release package"). Zips now carry the
+  full extracted-package layout (`serein.exe`, `README.md`,
+  `THIRD_PARTY_NOTICES.md`, `LICENSE-MIT`, `LICENSE-APACHE`, `licenses/`), and
+  `scripts/package-release.ps1` builds and verifies that layout for every
+  future release. Installs upgraded by hand from an exe-only zip can run the
+  script's file set (or re-extract the v0.3.1 zip over the install) to become
+  updatable.
+- **Extension plugin requests follow the skip policy.** The
+  `RequestTranslation` host action now classifies text before spawning the
+  engine call; links/emoji/mention-only, credential-shaped and bare-email
+  requests return a plain-language "Not translated" note to the plugin panel
+  instead of reaching the model.
+
 ## [0.3.0] - 2026-11-20
 
 ### Added
