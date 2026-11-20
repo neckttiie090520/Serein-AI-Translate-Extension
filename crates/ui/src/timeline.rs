@@ -2285,7 +2285,7 @@ impl TimelineView {
 	/// falling back to the reviewed browser link otherwise.
 	fn translate_clicked(&mut self, ctx: &egui::Context, id: Id, message: &Message) {
 		let text = crate::i18n::message_text(message);
-		if crate::local_translate::enabled() {
+		if crate::local_translate::enabled() && crate::local_translate::active(ctx) {
 			crate::local_translate::toggle_inline(ctx, id.0, &text, translation_url(message));
 		} else if let Some((url, truncated)) = translation_url(message) {
 			self.truncated_translation = truncated.then(|| url.clone());
@@ -3914,7 +3914,9 @@ impl TimelineView {
 													.color(colors.muted),
 												);
 											}
-											if crate::local_translate::enabled() {
+											if crate::local_translate::enabled()
+												&& crate::local_translate::active(ui.ctx())
+											{
 												let own_message =
 													state.user.as_ref().is_some_and(|user| {
 														user.id == message.author.id
@@ -3943,6 +3945,17 @@ impl TimelineView {
 															);
 														});
 													}
+													crate::local_translate::InlineState::Skipped(kind) => {
+														ui.horizontal(|ui| {
+															ui.label(
+																RichText::new(crate::i18n::translate(
+																	crate::local_translate::skip_label(kind),
+																))
+																	.small()
+																	.color(colors.muted),
+															);
+														});
+													}
 													crate::local_translate::InlineState::Done(Ok(translation)) => {
 														ui.add_space(2.0);
 														let translated = self.formatted.get_part(
@@ -3963,18 +3976,6 @@ impl TimelineView {
 															(avatars, state.demo, &state.guilds),
 															crate::design::MessageCardSurface::Conversation,
 														);
-															let detected = translation
-																.detected_language
-																.as_deref()
-																.unwrap_or("?");
-															ui.label(
-																RichText::new(crate::i18n::translate_args(
-																	"local-translate-inline-from",
-																	&[("language", detected)],
-																))
-																.small()
-																.color(colors.muted),
-															);
 															ui.label(
 																RichText::new(crate::i18n::translate_args(
 																	"local-translate-inline-to",

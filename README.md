@@ -126,6 +126,10 @@ Optional environment knobs:
 
 Then open the **⇄ Globe** button in the chat bar to pick languages and toggles.
 
+**One-click pause.** Click the Globe to turn translation on or off for the whole app; right-click it to open settings. While off, nothing is translated and nothing is sent to the engine.
+
+Messages that need no translation — bare links, emoji-only, @mentions, bare email addresses, and anything shaped like a key or credential (`sk-…`, `ghp_…`, `password: …`) — never reach the model at all, and the UI says so instead of staying silent: a muted "not translated" note on skipped messages, a spinner while translating, and explicit composer statuses for translating / kept-draft / sent.
+
 **In-app updates stay on this fork.** The updater only downloads releases published under this repository (verified against their `SHA256SUMS.txt`), so an upstream release can never silently replace your local-translation build.
 
 ### 3. Set your languages once (30 seconds)

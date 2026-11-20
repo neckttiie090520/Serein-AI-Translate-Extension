@@ -3005,15 +3005,25 @@ impl MessagingUi {
 			&& let Some(channel) = state.selected
 		{
 			let draft_text = state.drafts.get(&channel).cloned().unwrap_or_default();
-			if !draft_text.trim().is_empty()
-				&& crate::local_translate::queue_send(
+			if !draft_text.trim().is_empty() {
+				match crate::local_translate::queue_send(
 					ctx,
 					&draft_text,
 					translation_context(ctx, state, channel),
 				) {
-				state.status = "Translating message before send…";
-				self.translate_send = Some((channel, draft_text));
-				return;
+					crate::local_translate::SendOutcome::Started => {
+						state.status = "Translating message before send…";
+						self.translate_send = Some((channel, draft_text));
+						return;
+					}
+					crate::local_translate::SendOutcome::Busy => {
+						state.status = "A translation is still running; the draft was kept";
+						return;
+					}
+					crate::local_translate::SendOutcome::Skipped(_) => {
+						state.status = "Nothing to translate (links, emoji or credentials only); sending as-is";
+					}
+				}
 			}
 		}
 		self.translate_send_skip = false;
@@ -3166,6 +3176,7 @@ impl MessagingUi {
 							state.drafts.insert(channel, translation.text);
 							self.translate_send_skip = true;
 							self.submit_composer(state, ctx, commands);
+							state.status = "Sent the translated message";
 							return;
 						}
 					} else {
@@ -3869,22 +3880,37 @@ impl MessagingUi {
                                 ),
                             );
                         }
-                        let base = if settings.auto_incoming || settings.auto_outgoing {
-                            crate::i18n::translate("local-translate-chat-bar-active")
+                        // One click pauses or resumes the whole feature; right
+                        // click opens the full settings window.
+                        let mut label = if !settings.translate_enabled {
+                            crate::i18n::translate("local-translate-chat-bar-off").to_owned()
+                        } else if settings.auto_incoming || settings.auto_outgoing {
+                            crate::i18n::translate("local-translate-chat-bar-active").to_owned()
                         } else {
-                            crate::i18n::translate("local-translate-chat-bar")
+                            crate::i18n::translate("local-translate-chat-bar").to_owned()
                         };
-                        let label = format!(
-                            "{base}\n{}",
-                            crate::i18n::translate_args(
+                        if settings.translate_enabled {
+                            label.push('\n');
+                            label.push_str(&crate::i18n::translate_args(
                                 "local-translate-chat-bar-targets",
                                 &[
                                     ("incoming", crate::local_translate::language_name(&settings.incoming_target)),
                                     ("outgoing", crate::local_translate::language_name(&settings.outgoing_target)),
                                 ],
-                            )
+                            ));
+                        }
+                        label.push('\n');
+                        label.push_str(&crate::i18n::translate("local-translate-chat-bar-settings-hint"));
+                        let globe = icons::toggle(
+                            ui,
+                            icons::Icon::Globe,
+                            28.0,
+                            settings.translate_enabled,
+                            &label,
                         );
-                        if icons::button(ui, icons::Icon::Globe, 28.0, &label).clicked() {
+                        if globe.clicked() {
+                            crate::local_translate::toggle_active(ui.ctx());
+                        } else if globe.secondary_clicked() {
                             crate::local_translate::open_settings(ui.ctx());
                         }
                     }

@@ -2194,6 +2194,7 @@ mod tests {
 		let legacy: AppPreferences = serde_json::from_str("{}").unwrap();
 		assert_eq!(legacy.translate, None);
 		let saved = model::TranslatePreferences {
+			enabled: true,
 			incoming_target: "th".into(),
 			context_messages: 6,
 			..model::TranslatePreferences::default()

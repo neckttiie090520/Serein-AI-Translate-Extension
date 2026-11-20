@@ -5,6 +5,9 @@
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct TranslatePreferences {
+	/// Master switch mirrored from the chat-bar globe; off pauses the whole
+	/// feature without touching the individual target settings.
+	pub enabled: bool,
 	pub incoming_target: String,
 	pub outgoing_target: String,
 	pub auto_incoming: bool,
@@ -21,6 +24,7 @@ pub struct TranslatePreferences {
 impl Default for TranslatePreferences {
 	fn default() -> Self {
 		Self {
+			enabled: true,
 			incoming_target: "en".into(),
 			outgoing_target: "en".into(),
 			auto_incoming: false,
@@ -59,6 +63,7 @@ mod tests {
 		assert_eq!(defaults.context_messages, 4);
 		assert!(!defaults.auto_incoming && !defaults.auto_outgoing);
 		assert!(!defaults.outgoing_preview && !defaults.context_aware);
+		assert!(defaults.enabled);
 		assert!(defaults.is_valid());
 	}
 

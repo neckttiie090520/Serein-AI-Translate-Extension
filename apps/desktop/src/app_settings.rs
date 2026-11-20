@@ -666,6 +666,7 @@ mod tests {
 	#[test]
 	fn observe_keeps_saved_translate_preferences_without_user_edits() {
 		let saved = model::TranslatePreferences {
+			enabled: true,
 			incoming_target: "th".into(),
 			..model::TranslatePreferences::default()
 		};
@@ -703,6 +704,7 @@ mod tests {
 		assert_eq!(settings.current.translate, None);
 		assert!(!settings.state.dirty);
 		let changed = model::TranslatePreferences {
+			enabled: true,
 			incoming_target: "th".into(),
 			..seeded
 		};
@@ -727,6 +729,7 @@ mod tests {
 		assert!(!settings.loaded);
 		settings.seed_translate(model::TranslatePreferences::default());
 		settings.observe_translate(model::TranslatePreferences {
+			enabled: true,
 			incoming_target: "ko".into(),
 			..model::TranslatePreferences::default()
 		});

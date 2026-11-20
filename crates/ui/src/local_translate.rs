@@ -133,7 +133,7 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const READ_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_MESSAGE_BYTES: usize = 8 * 1024;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Translation {
 	pub(crate) text: String,
 	pub(crate) detected_language: Option<String>,
@@ -165,6 +165,8 @@ pub const LANGUAGES: &[(&str, &str)] = &[
 /// preferences row.
 #[derive(Clone)]
 pub struct Settings {
+	/// Master switch: pause the whole feature from the chat-bar globe.
+	pub translate_enabled: bool,
 	pub incoming_target: String,
 	pub outgoing_target: String,
 	pub auto_incoming: bool,
@@ -195,6 +197,7 @@ impl Default for Settings {
 	fn default() -> Self {
 		let target = env_target();
 		Self {
+			translate_enabled: true,
 			incoming_target: target.clone(),
 			outgoing_target: target,
 			auto_incoming: false,
@@ -247,6 +250,7 @@ fn known_target(code: &str, fallback: &str) -> String {
 
 fn preferences_from(settings: &Settings) -> model::TranslatePreferences {
 	model::TranslatePreferences {
+		enabled: settings.translate_enabled,
 		incoming_target: settings.incoming_target.clone(),
 		outgoing_target: settings.outgoing_target.clone(),
 		auto_incoming: settings.auto_incoming,
@@ -274,6 +278,7 @@ pub fn apply_preferences(
 		Some(saved) => {
 			let defaults = Settings::default();
 			Settings {
+				translate_enabled: saved.enabled,
 				incoming_target: known_target(&saved.incoming_target, &defaults.incoming_target),
 				outgoing_target: known_target(&saved.outgoing_target, &defaults.outgoing_target),
 				auto_incoming: saved.auto_incoming,
@@ -306,6 +311,223 @@ fn mark_same_language(ctx: &egui::Context, detected: &str) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Skip classification: keep links, emoji, credentials and addresses out of
+// the model entirely
+// ---------------------------------------------------------------------------
+
+/// Why a message is not worth sending to the translation model.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SkipKind {
+	/// URLs, mentions, channels and emoji only — no natural language remains.
+	LinksEmojiMentionsOnly,
+	/// High-confidence key or credential material; kept away from the model.
+	Credential,
+	/// A single bare email address; translation cannot change it.
+	EmailAddress,
+}
+
+/// i18n key shown next to a message that was not translated.
+pub fn skip_label(kind: SkipKind) -> &'static str {
+	match kind {
+		SkipKind::LinksEmojiMentionsOnly => "local-translate-skip-decorative",
+		SkipKind::Credential => "local-translate-skip-credential",
+		SkipKind::EmailAddress => "local-translate-skip-email",
+	}
+}
+
+/// Classify `text` as not needing translation; None means send it to the
+/// model. Credentials win over everything (privacy), then link/mention/
+/// emoji-only messages, then bare addresses.
+pub fn skip_kind(text: &str) -> Option<SkipKind> {
+	let text = text.trim();
+	if text.is_empty() {
+		return None;
+	}
+	if looks_like_credential(text) {
+		return Some(SkipKind::Credential);
+	}
+	if text.split_whitespace().all(is_non_verbal_token) {
+		return Some(SkipKind::LinksEmojiMentionsOnly);
+	}
+	if is_bare_email(text) {
+		return Some(SkipKind::EmailAddress);
+	}
+	None
+}
+
+fn is_non_verbal_token(raw: &str) -> bool {
+	if raw.starts_with('<') && raw.ends_with('>') && raw.len() > 2 {
+		let inner = &raw[1..raw.len() - 1];
+		return inner.starts_with("http")
+			|| inner.starts_with('@')
+			|| inner.starts_with('#')
+			|| inner.starts_with(':')
+			|| inner.starts_with("a:");
+	}
+	let token = raw.trim_matches(|c: char| ".,!?;:'\"()*`~[]".contains(c));
+	token.is_empty()
+		|| is_url_token(token)
+		|| token.starts_with('@')
+		|| is_channel_token(token)
+		|| token.chars().all(is_emoji_char)
+}
+fn is_url_token(token: &str) -> bool {
+	let lower = token.to_ascii_lowercase();
+	lower.starts_with("http://")
+		|| lower.starts_with("https://")
+		|| lower.starts_with("www.")
+		|| lower.starts_with("discord.gg/")
+		|| lower.starts_with("discord.com/invite/")
+		|| is_bare_domain(token)
+}
+fn is_bare_domain(token: &str) -> bool {
+	let Some((head, tail)) = token.split_once('.') else {
+		return false;
+	};
+	!head.is_empty()
+		&& !tail.is_empty()
+		&& head.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+		&& tail.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+fn is_channel_token(token: &str) -> bool {
+	match token.strip_prefix('#') {
+		Some(rest) => {
+			!rest.is_empty() && rest.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+		}
+		None => false,
+	}
+}
+fn is_emoji_char(c: char) -> bool {
+	matches!(c as u32,
+		0x1F000..=0x1FAFF
+		| 0x2600..=0x27BF
+		| 0x2B00..=0x2BFF
+		| 0xFE0F
+		| 0x200D
+		| 0x20E3
+		| 0x00A9
+		| 0x00AE
+		| 0x203C
+		| 0x2049
+		| 0x2122)
+}
+fn is_bare_email(text: &str) -> bool {
+	let Some((user, domain)) = text.split_once('@') else {
+		return false;
+	};
+	!user.is_empty()
+		&& domain.contains('.')
+		&& !domain.starts_with('.')
+		&& !domain.ends_with('.')
+		&& !text.contains(char::is_whitespace)
+		&& text
+			.chars()
+			.all(|c| c.is_ascii_alphanumeric() || "._%+-@".contains(c))
+}
+
+/// Token prefixes that introduce an opaque key, with the minimum run length
+/// of following key characters.
+const KEY_PREFIXES: &[(&str, usize)] = &[
+	("sk-", 16),
+	("ghp_", 30),
+	("ghu_", 30),
+	("gho_", 30),
+	("ghs_", 30),
+	("github_pat_", 30),
+	("xoxb-", 10),
+	("xoxa-", 10),
+	("xoxp-", 10),
+	("xoxr-", 10),
+	("xoxs-", 10),
+	("aiza", 30),
+];
+/// Credential labels where a solid value after ':' or '=' is a secret.
+const KEY_LABELS: &[&str] = &[
+	"password", "passwd", "secret", "token", "api key", "apikey", "api_key", "api-key",
+];
+
+fn looks_like_credential(text: &str) -> bool {
+	let lower = text.to_ascii_lowercase();
+	if lower.contains("private key-----") {
+		return true;
+	}
+	for (prefix, min) in KEY_PREFIXES {
+		let mut search = 0;
+		while let Some(found) = lower[search..].find(prefix) {
+			let at = search + found;
+			let boundary = text[..at]
+				.chars()
+				.next_back()
+				.is_none_or(|c| !(c.is_ascii_alphanumeric() || c == '-' || c == '_'));
+			let run = lower[at + prefix.len()..]
+				.chars()
+				.take_while(|c| c.is_ascii_alphanumeric() || *c == '_' || *c == '-')
+				.count();
+			if boundary && run >= *min {
+				return true;
+			}
+			search = at + 1;
+		}
+	}
+	for label in KEY_LABELS {
+		let mut search = 0;
+		while let Some(found) = lower[search..].find(label) {
+			let mut rest = lower[search + found + label.len()..].chars().peekable();
+			while matches!(rest.peek(), Some(' ')) {
+				rest.next();
+			}
+			if matches!(rest.peek(), Some(':') | Some('=')) {
+				rest.next();
+				while matches!(rest.peek(), Some(' ')) {
+					rest.next();
+				}
+				let value = rest.take_while(|c| !c.is_whitespace()).collect::<String>();
+				if value.len() >= 8 {
+					return true;
+				}
+			}
+			search = search + found + 1;
+		}
+	}
+	let mut search = 0;
+	while let Some(found) = text[search..].find("AKIA") {
+		let at = search + found;
+		let boundary = text[..at]
+			.chars()
+			.next_back()
+			.is_none_or(|c| !(c.is_ascii_alphanumeric() || c == '-'));
+		let run = text[at + 4..]
+			.chars()
+			.take_while(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+			.count();
+		if boundary && run >= 16 {
+			return true;
+		}
+		search = at + 1;
+	}
+	long_opaque_run(text)
+}
+
+/// Pure hex >= 40 or mixed-case base64 >= 48 standing as one token.
+fn long_opaque_run(text: &str) -> bool {
+	for token in text.split(|c: char| c.is_whitespace() || ".,;:!?()[]{}<>\"'`".contains(c)) {
+		if token.len() >= 40 && token.chars().all(|c| c.is_ascii_hexdigit()) {
+			return true;
+		}
+		if token.len() >= 48
+			&& token
+				.chars()
+				.all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '=')
+			&& token.chars().any(|c| c.is_ascii_lowercase())
+			&& token.chars().any(|c| c.is_ascii_uppercase())
+			&& token.chars().any(|c| c.is_ascii_digit())
+		{
+			return true;
+		}
+	}
+	false
+}
 /// Take the pending same-language notice, if any; set at most once per run.
 pub fn take_same_language_notice(ctx: &egui::Context) -> Option<String> {
 	ctx.data_mut(|data| {
@@ -316,7 +538,8 @@ pub fn take_same_language_notice(ctx: &egui::Context) -> Option<String> {
 
 /// True when outgoing drafts should be translated before sending.
 pub fn should_translate_send(ctx: &egui::Context) -> bool {
-	enabled() && settings_snapshot(ctx).auto_outgoing
+	let settings = settings_snapshot(ctx);
+	enabled() && settings.translate_enabled && settings.auto_outgoing
 }
 
 /// True when before-send translations wait for a preview confirmation.
@@ -325,6 +548,18 @@ pub fn send_preview_enabled(ctx: &egui::Context) -> bool {
 	enabled() && settings.auto_outgoing && settings.outgoing_preview
 }
 
+/// Whether the feature is active: the environment allows it and the chat-bar
+/// master toggle is on.
+pub fn active(ctx: &egui::Context) -> bool {
+	settings_snapshot(ctx).translate_enabled
+}
+
+/// Flip the master translate switch (chat-bar globe click).
+pub fn toggle_active(ctx: &egui::Context) {
+	with_settings(ctx, |settings| {
+		settings.translate_enabled = !settings.translate_enabled
+	});
+}
 /// Open the settings window from the chat-bar button.
 pub fn open_settings(ctx: &egui::Context) {
 	ctx.data_mut(|data| {
@@ -349,65 +584,71 @@ pub fn show_settings(ctx: &egui::Context) {
 		.min_width(340.0)
 		.show(ctx, |ui| {
 			let mut settings = settings_snapshot(ctx);
-			ui.add_space(2.0);
-			combo_target(
-				ui,
-				"local-translate-settings-incoming",
-				&mut settings.incoming_target,
-			);
-			combo_target(
-				ui,
-				"local-translate-settings-outgoing",
-				&mut settings.outgoing_target,
-			);
-			ui.add_space(6.0);
-			ui.separator();
-			ui.add_space(6.0);
 			ui.checkbox(
-				&mut settings.auto_incoming,
-				crate::i18n::translate("local-translate-settings-auto-incoming"),
+				&mut settings.translate_enabled,
+				crate::i18n::translate("local-translate-settings-master"),
 			);
-			ui.checkbox(
-				&mut settings.auto_outgoing,
-				crate::i18n::translate("local-translate-settings-auto-outgoing"),
-			);
-			ui.add_enabled_ui(settings.auto_outgoing, |ui| {
+			ui.add_enabled_ui(settings.translate_enabled, |ui| {
+				ui.add_space(4.0);
+				combo_target(
+					ui,
+					"local-translate-settings-incoming",
+					&mut settings.incoming_target,
+				);
+				combo_target(
+					ui,
+					"local-translate-settings-outgoing",
+					&mut settings.outgoing_target,
+				);
+				ui.add_space(6.0);
+				ui.separator();
+				ui.add_space(6.0);
 				ui.checkbox(
-					&mut settings.outgoing_preview,
-					crate::i18n::translate("local-translate-settings-preview"),
+					&mut settings.auto_incoming,
+					crate::i18n::translate("local-translate-settings-auto-incoming"),
 				);
 				ui.checkbox(
-					&mut settings.context_aware,
-					crate::i18n::translate("local-translate-settings-context"),
+					&mut settings.auto_outgoing,
+					crate::i18n::translate("local-translate-settings-auto-outgoing"),
 				);
-				ui.add_enabled_ui(settings.context_aware, |ui| {
-					ui.label(crate::i18n::translate(
-						"local-translate-settings-context-depth",
-					));
-					let current = format!("{}", settings.context_messages);
-					egui::ComboBox::from_id_salt("local-translate-context-depth")
-						.selected_text(current)
-						.show_ui(ui, |ui| {
-							for &choice in CONTEXT_MESSAGE_CHOICES {
-								ui.selectable_value(
-									&mut settings.context_messages,
-									choice,
-									format!("{choice}"),
-								);
-							}
-						});
+				ui.add_enabled_ui(settings.auto_outgoing, |ui| {
+					ui.checkbox(
+						&mut settings.outgoing_preview,
+						crate::i18n::translate("local-translate-settings-preview"),
+					);
+					ui.checkbox(
+						&mut settings.context_aware,
+						crate::i18n::translate("local-translate-settings-context"),
+					);
+					ui.add_enabled_ui(settings.context_aware, |ui| {
+						ui.label(crate::i18n::translate(
+							"local-translate-settings-context-depth",
+						));
+						let current = format!("{}", settings.context_messages);
+						egui::ComboBox::from_id_salt("local-translate-context-depth")
+							.selected_text(current)
+							.show_ui(ui, |ui| {
+								for &choice in CONTEXT_MESSAGE_CHOICES {
+									ui.selectable_value(
+										&mut settings.context_messages,
+										choice,
+										format!("{choice}"),
+									);
+								}
+							});
+					});
 				});
+				ui.add_space(6.0);
+				let host = service_authority();
+				ui.label(
+					egui::RichText::new(crate::i18n::translate_args(
+						"local-translate-settings-hint",
+						&[("host", &host)],
+					))
+					.small()
+					.color(ui.visuals().weak_text_color()),
+				);
 			});
-			ui.add_space(6.0);
-			let host = service_authority();
-			ui.label(
-				egui::RichText::new(crate::i18n::translate_args(
-					"local-translate-settings-hint",
-					&[("host", &host)],
-				))
-				.small()
-				.color(ui.visuals().weak_text_color()),
-			);
 			with_settings(ui.ctx(), |stored| *stored = settings);
 		});
 	if !window_open {
@@ -439,9 +680,12 @@ fn combo_target(ui: &mut egui::Ui, label_key: &str, value: &mut String) {
 // ---------------------------------------------------------------------------
 
 /// State of one message's inline translation.
+#[derive(Clone, Debug, PartialEq)]
 pub enum InlineState {
 	Pending,
 	Done(Result<Translation, String>),
+	/// Classified as not worth translating; never sent to the model.
+	Skipped(SkipKind),
 }
 
 /// A renderable snapshot of one message's inline translation.
@@ -523,6 +767,7 @@ pub fn inline_entry(message_id: u64) -> Option<InlineEntry> {
 		state: match &*shared.state.lock().expect("local translate") {
 			InlineState::Pending => InlineState::Pending,
 			InlineState::Done(result) => InlineState::Done(result.clone()),
+			InlineState::Skipped(kind) => InlineState::Skipped(*kind),
 		},
 		fallback: shared.fallback.clone(),
 		target: shared.target.clone(),
@@ -551,7 +796,16 @@ fn spawn_inline(
 	drop_same_language: bool,
 	fallback: Option<(String, bool)>,
 ) -> bool {
-	let state = Arc::new(Mutex::new(InlineState::Pending));
+	// Auto-requests skip silently; a manual click keeps a visible entry so the
+	// button never looks dead. Skipped entries never reach the model.
+	let skipped = skip_kind(text);
+	if skipped.is_some() && drop_same_language {
+		return false;
+	}
+	let state = Arc::new(Mutex::new(match skipped {
+		Some(kind) => InlineState::Skipped(kind),
+		None => InlineState::Pending,
+	}));
 	if !reserve_slot(
 		message_id,
 		text,
@@ -561,29 +815,31 @@ fn spawn_inline(
 	) {
 		return false;
 	}
-	let authority = service_authority();
-	let body = request_body(text, target);
-	let target_owned = target.to_owned();
-	let repaint = ctx.clone();
-	std::thread::spawn(move || {
-		let mut result = translate_at(&authority, "/translate", &body);
-		// A result already in the target language is a no-op: auto-requests drop
-		// it silently (the renderer removes empty errors) and the first one flags
-		// the UI so a manual click that seems to do nothing gets explained.
-		if let Ok(translation) = &result
-			&& let Some(detected) = translation.detected_language.as_deref()
-			&& detected.eq_ignore_ascii_case(&target_owned)
-		{
-			mark_same_language(&repaint, detected);
-			if drop_same_language {
-				result = Err(String::new());
+	if skipped.is_none() {
+		let authority = service_authority();
+		let body = request_body(text, target);
+		let target_owned = target.to_owned();
+		let repaint = ctx.clone();
+		std::thread::spawn(move || {
+			let mut result = translate_at(&authority, "/translate", &body);
+			// A result already in the target language is a no-op: auto-requests drop
+			// it silently (the renderer removes empty errors) and the first one flags
+			// the UI so a manual click that seems to do nothing gets explained.
+			if let Ok(translation) = &result
+				&& let Some(detected) = translation.detected_language.as_deref()
+				&& detected.eq_ignore_ascii_case(&target_owned)
+			{
+				mark_same_language(&repaint, detected);
+				if drop_same_language {
+					result = Err(String::new());
+				}
 			}
-		}
-		if let Ok(mut slot) = state.lock() {
-			*slot = InlineState::Done(result);
-		}
-		repaint.request_repaint();
-	});
+			if let Ok(mut slot) = state.lock() {
+				*slot = InlineState::Done(result);
+			}
+			repaint.request_repaint();
+		});
+	}
 	true
 }
 
@@ -720,7 +976,7 @@ pub fn auto_incoming(ctx: &egui::Context, message_id: u64, text: &str, own: bool
 		return;
 	}
 	let settings = settings_snapshot(ctx);
-	if !settings.auto_incoming {
+	if !settings.translate_enabled || !settings.auto_incoming {
 		return;
 	}
 	let text = clamp_text(text.trim());
@@ -767,19 +1023,32 @@ fn send_slot() -> &'static Mutex<Option<SendJob>> {
 	SEND_SLOT.get_or_init(|| Mutex::new(None))
 }
 
-/// Queue `text` for translation before send. Returns false when a job is
-/// already in flight (or the text is empty); the caller should then keep the
-/// draft and retry submitting later.
-pub fn queue_send(ctx: &egui::Context, text: &str, context: Option<Vec<String>>) -> bool {
+/// Outcome of queueing a before-send translation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SendOutcome {
+	Started,
+	/// A job is already in flight; keep the draft and retry.
+	Busy,
+	/// Nothing worth translating — send the draft as it is.
+	Skipped(SkipKind),
+}
+
+/// Queue `text` for translation before send. `Skipped` texts never reach the
+/// model; the caller should send them unchanged. `Busy` means a job is
+/// already in flight and the caller should keep the draft and retry.
+pub fn queue_send(ctx: &egui::Context, text: &str, context: Option<Vec<String>>) -> SendOutcome {
 	let text = clamp_text(text.trim());
+	if let Some(kind) = skip_kind(text) {
+		return SendOutcome::Skipped(kind);
+	}
 	if text.is_empty() {
-		return false;
+		return SendOutcome::Busy;
 	}
 	let state = Arc::new(Mutex::new(None));
 	{
 		let mut slot = send_slot().lock().expect("local translate");
 		if slot.is_some() {
-			return false;
+			return SendOutcome::Busy;
 		}
 		*slot = Some(SendJob {
 			state: Arc::clone(&state),
@@ -802,7 +1071,7 @@ pub fn queue_send(ctx: &egui::Context, text: &str, context: Option<Vec<String>>)
 		}
 		repaint.request_repaint();
 	});
-	true
+	SendOutcome::Started
 }
 
 /// Take the finished before-send translation, if any. A none-result leaves
@@ -1144,6 +1413,7 @@ mod tests {
 	fn apply_preferences_validates_stored_targets_and_depth() {
 		let ctx = egui::Context::default();
 		let saved = model::TranslatePreferences {
+			enabled: true,
 			incoming_target: "xx".into(),
 			outgoing_target: "th".into(),
 			auto_incoming: true,
@@ -1165,6 +1435,7 @@ mod tests {
 	fn apply_preferences_round_trips_saved_settings() {
 		let ctx = egui::Context::default();
 		let saved = model::TranslatePreferences {
+			enabled: true,
 			incoming_target: "th".into(),
 			outgoing_target: "ko".into(),
 			auto_incoming: true,
@@ -1189,5 +1460,104 @@ mod tests {
 	fn language_name_falls_back_to_the_code() {
 		assert_eq!(language_name("th"), "Thai");
 		assert_eq!(language_name("zz"), "zz");
+	}
+	#[test]
+	fn skip_kind_flags_link_mention_and_emoji_only_text() {
+		assert_eq!(
+			skip_kind("https://example.com/some/path?x=1"),
+			Some(SkipKind::LinksEmojiMentionsOnly)
+		);
+		assert_eq!(
+			skip_kind("www.google.com"),
+			Some(SkipKind::LinksEmojiMentionsOnly)
+		);
+		assert_eq!(
+			skip_kind("<:kekw:111111111111111111> \u{1F525}\u{1F525} https://cdn.example/x.png"),
+			Some(SkipKind::LinksEmojiMentionsOnly)
+		);
+		assert_eq!(
+			skip_kind("@user <@123456789> @here"),
+			Some(SkipKind::LinksEmojiMentionsOnly)
+		);
+		assert_eq!(
+			skip_kind("discord.gg/abc123"),
+			Some(SkipKind::LinksEmojiMentionsOnly)
+		);
+		assert_eq!(
+			skip_kind("\u{1F525} \u{2764}\u{FE0F} \u{1F602} <a:dance:999999999999999999>"),
+			Some(SkipKind::LinksEmojiMentionsOnly)
+		);
+	}
+
+	#[test]
+	fn skip_kind_keeps_normal_text_with_links_inside() {
+		assert_eq!(skip_kind("check this https://example.com please"), None);
+		assert_eq!(skip_kind("hello how are you"), None);
+		assert_eq!(skip_kind("pass the salt please"), None);
+		assert_eq!(skip_kind("email me at bob@example.com later"), None);
+	}
+
+	#[test]
+	fn skip_kind_flags_credential_shapes() {
+		assert_eq!(
+			skip_kind("sk-abc123def456ghi789jklmno"),
+			Some(SkipKind::Credential)
+		);
+		assert_eq!(
+			skip_kind("here is my token ghp_AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHH1234"),
+			Some(SkipKind::Credential)
+		);
+		assert_eq!(
+			skip_kind("AKIAIOSFODNN7EXAMPLE"),
+			Some(SkipKind::Credential)
+		);
+		assert_eq!(
+			skip_kind("-----BEGIN PRIVATE KEY-----"),
+			Some(SkipKind::Credential)
+		);
+		assert_eq!(
+			skip_kind("password: hunter2hunter2"),
+			Some(SkipKind::Credential)
+		);
+		assert_eq!(
+			skip_kind(&"a".repeat(41).replace('a', "f")),
+			Some(SkipKind::Credential)
+		);
+		assert_eq!(skip_kind("pass: the"), None);
+	}
+
+	#[test]
+	fn skip_kind_flags_bare_email_addresses() {
+		assert_eq!(
+			skip_kind("someone@example.com"),
+			Some(SkipKind::EmailAddress)
+		);
+		assert_eq!(
+			skip_kind("first.last+tag@mail.co.uk"),
+			Some(SkipKind::EmailAddress)
+		);
+		assert_eq!(skip_kind("my mail: someone@example.com"), None);
+	}
+
+	#[test]
+	fn manual_skip_creates_a_skipped_entry_without_calling_the_engine() {
+		let _guard = TEST_LOCK
+			.lock()
+			.unwrap_or_else(|poisoned| poisoned.into_inner());
+		inline_map().lock().expect("local translate").clear();
+		dismissed().lock().expect("local translate").clear();
+		let ctx = egui::Context::default();
+		assert!(toggle_inline(
+			&ctx,
+			701,
+			"https://example.com/only-a-link",
+			None,
+		));
+		let entry = inline_entry(701).expect("manual skip keeps an entry");
+		assert_eq!(
+			entry.state,
+			InlineState::Skipped(SkipKind::LinksEmojiMentionsOnly)
+		);
+		clear_inline(701);
 	}
 }
