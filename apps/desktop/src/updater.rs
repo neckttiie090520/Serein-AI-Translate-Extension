@@ -18,7 +18,39 @@ mod delta;
 #[path = "updater_install.rs"]
 mod install;
 
-const RELEASES: &str = "https://api.github.com/repos/ViceVerse-cz/Serein/releases";
+const DEFAULT_UPDATE_REPO: &str = "neckttiie090520/Serein-AI-Translate-Extension";
+
+/// The GitHub repository the in-app updater tracks, as `owner/name`. Fork builds
+/// publish their own releases, so an update never replaces this build with an
+/// upstream package. `SEREIN_UPDATE_REPO` overrides the default for testing.
+fn update_repo() -> String {
+	update_repo_from(std::env::var("SEREIN_UPDATE_REPO").ok().as_deref())
+}
+fn update_repo_from(configured: Option<&str>) -> String {
+	configured
+		.filter(|slug| valid_update_repo(slug))
+		.unwrap_or(DEFAULT_UPDATE_REPO)
+		.to_owned()
+}
+fn valid_update_repo(slug: &str) -> bool {
+	if slug.len() > 100 {
+		return false;
+	}
+	let Some((owner, name)) = slug.split_once('/') else {
+		return false;
+	};
+	[owner, name].iter().all(|part| {
+		(1..=64).contains(&part.len())
+			&& part
+				.bytes()
+				.all(|b| b.is_ascii_alphanumeric() || b"._-".contains(&b))
+			&& *part != "."
+			&& *part != ".."
+	})
+}
+fn releases_endpoint(repo: &str) -> String {
+	format!("https://api.github.com/repos/{repo}/releases")
+}
 const MAX_METADATA: usize = 2 * 1024 * 1024;
 const MAX_DOWNLOAD: u64 = 512 * 1024 * 1024;
 const CHECK_INTERVAL: Duration = Duration::from_secs(60 * 60);
@@ -646,6 +678,7 @@ fn select_release(
 	releases: Vec<Release>,
 	nightly: bool,
 	current: &semver::Version,
+	repo: &str,
 ) -> Result<Option<Package>, String> {
 	if releases.len() > 100 {
 		return Err("The release list exceeds its limit.".into());
@@ -690,11 +723,11 @@ fn select_release(
 			return Err("The release asset metadata is invalid.".into());
 		}
 		let expected = format!(
-			"https://github.com/ViceVerse-cz/Serein/releases/download/{}/{name}",
+			"https://github.com/{repo}/releases/download/{}/{name}",
 			release.tag_name
 		);
 		if asset.browser_download_url != expected {
-			return Err("The asset is not from the Serein release repository.".into());
+			return Err("The asset is not from the configured release repository.".into());
 		}
 		Ok(asset.clone())
 	};
@@ -720,10 +753,11 @@ async fn check_release(
 	cancel: Arc<AtomicBool>,
 ) -> Result<(Option<Package>, Vec<ui::updates::LogEntry>), String> {
 	let client = client()?;
+	let repo = update_repo();
 	let endpoint = if nightly {
-		format!("{RELEASES}?per_page=100")
+		format!("{}?per_page=100", releases_endpoint(&repo))
 	} else {
-		format!("{RELEASES}/latest")
+		format!("{}/latest", releases_endpoint(&repo))
 	};
 	let body = bounded_body(&client, &endpoint, MAX_METADATA, &cancel).await?;
 	let releases = if nightly {
@@ -735,7 +769,7 @@ async fn check_release(
 	let current = semver::Version::parse(env!("CARGO_PKG_VERSION"))
 		.map_err(|_| "This build has an invalid version.".to_owned())?;
 	let log = release_log(&releases, nightly, &current);
-	select_release(releases, nightly, &current).map(|package| (package, log))
+	select_release(releases, nightly, &current, &repo).map(|package| (package, log))
 }
 fn demo_log() -> Vec<ui::updates::LogEntry> {
 	[
@@ -953,6 +987,17 @@ pub fn debug_check() -> Result<(), String> {
 	{
 		return Err("Checksum validation failed.".into());
 	}
+	for slug in ["", "a", "a/b/c", "https://github.com/x"] {
+		if valid_update_repo(slug) {
+			return Err("Update repository validation failed.".into());
+		}
+	}
+	if !valid_update_repo(DEFAULT_UPDATE_REPO)
+		|| update_repo_from(None) != DEFAULT_UPDATE_REPO
+		|| update_repo_from(Some("valid/repo")) != "valid/repo"
+	{
+		return Err("The default update repository is invalid.".into());
+	}
 	let notes = release_notes(
 		"## [1.0.0](https://x) (2026-09-28)\n\n### Features\n\n* **voice:** add preview by [@a](https://x) in [#457](https://x) ([f15eac0](https://x))\n",
 	);
@@ -964,4 +1009,97 @@ pub fn debug_check() -> Result<(), String> {
 		return Err(format!("Release notes parsed as {notes:?}."));
 	}
 	install::debug_check()
+}
+#[cfg(test)]
+mod update_repo_tests {
+	use super::*;
+
+	#[test]
+	fn update_repo_defaults_to_the_fork() {
+		assert_eq!(
+			update_repo_from(None).as_str(),
+			"neckttiie090520/Serein-AI-Translate-Extension"
+		);
+	}
+
+	#[test]
+	fn update_repo_accepts_a_valid_override() {
+		assert_eq!(
+			update_repo_from(Some("another-owner/Repo_1.0")).as_str(),
+			"another-owner/Repo_1.0"
+		);
+	}
+
+	#[test]
+	fn update_repo_rejects_malformed_overrides() {
+		for slug in [
+			"",
+			"a",
+			"/b",
+			"a/",
+			"a//b",
+			"a/b/c",
+			"https://github.com/x",
+			"./a",
+			"a/..",
+			"a/b c",
+		] {
+			assert_eq!(
+				update_repo_from(Some(slug)).as_str(),
+				"neckttiie090520/Serein-AI-Translate-Extension",
+				"accepted {slug:?}"
+			);
+		}
+	}
+
+	#[test]
+	fn releases_endpoint_tracks_the_repository() {
+		assert_eq!(
+			releases_endpoint("another-owner/Repo_1.0").as_str(),
+			"https://api.github.com/repos/another-owner/Repo_1.0/releases"
+		);
+	}
+
+	fn release_with_assets(tag: &str, url: &str) -> Release {
+		Release {
+			tag_name: tag.to_owned(),
+			draft: false,
+			prerelease: false,
+			assets: vec![
+				Asset {
+					name: format!("serein-{tag}-Windows-X64.zip"),
+					browser_download_url: url.to_owned(),
+					size: 1,
+				},
+				Asset {
+					name: "SHA256SUMS.txt".to_owned(),
+					browser_download_url: format!(
+						"https://github.com/neckttiie090520/Serein-AI-Translate-Extension/releases/download/{tag}/SHA256SUMS.txt"
+					),
+					size: 1,
+				},
+			],
+			published_at: None,
+			body: None,
+		}
+	}
+
+	#[test]
+	fn select_release_accepts_assets_from_the_configured_repository_only() {
+		let repo = "neckttiie090520/Serein-AI-Translate-Extension";
+		let current = semver::Version::new(0, 1, 0);
+		let in_repo = format!(
+			"https://github.com/{repo}/releases/download/v0.2.0/serein-v0.2.0-Windows-X64.zip"
+		);
+		let upstream = "https://github.com/ViceVerse-cz/Serein/releases/download/v0.2.0/serein-v0.2.0-Windows-X64.zip";
+		let releases = vec![release_with_assets("v0.2.0", &in_repo)];
+		assert!(
+			select_release(releases.clone(), false, &current, repo)
+				.unwrap()
+				.is_some()
+		);
+		let mut foreign = releases;
+		foreign[0].assets[0].browser_download_url = upstream.to_owned();
+		assert!(select_release(foreign, false, &current, repo).is_err());
+	}
 }

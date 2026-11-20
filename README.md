@@ -122,8 +122,11 @@ Optional environment knobs:
 | `SEREIN_TRANSLATE_HOST` | `127.0.0.1:5050` | LTEngine address |
 | `SEREIN_TRANSLATE_TARGET` | `en` | first-run default target language; your pick in the Globe settings persists across restarts |
 | `SEREIN_LOCAL_TRANSLATE` | `1` | set `0` to fall back to browser links |
+| `SEREIN_UPDATE_REPO` | `neckttiie090520/Serein-AI-Translate-Extension` | GitHub `owner/name` the in-app updater tracks |
 
 Then open the **⇄ Globe** button in the chat bar to pick languages and toggles.
+
+**In-app updates stay on this fork.** The updater only downloads releases published under this repository (verified against their `SHA256SUMS.txt`), so an upstream release can never silently replace your local-translation build.
 
 ### 3. Set your languages once (30 seconds)
 
