@@ -12,3 +12,4 @@ __pycache__/
 *.tmp
 *.serein-extension
 extensions/plugins/packages/
+.bug-hunter/
