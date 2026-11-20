@@ -1,0 +1,66 @@
+{
+  "version": "3.0.0",
+  "scan_id": "scan-2026-11-20-bughunt-v032",
+  "scan_date": "2026-11-20T10:55:00Z",
+  "mode": "small (branch diff origin/main...main, local-sequential)",
+  "target": "fork diff vs upstream (23 files: 14 Rust + scripts + ftl)",
+  "files_scanned": 14,
+  "threat_model_loaded": false,
+  "confirmed": [
+    {
+      "id": "BUG-1",
+      "severity": "HIGH",
+      "category": "concurrency",
+      "stride": "N/A",
+      "cwe": "CWE-362",
+      "file": "crates/ui/src/local_translate.rs",
+      "lines": "spawn_extension_translation / take_finished_translations",
+      "claim": "Extension translation worker threads write results by Vec index captured at spawn time, while take_finished_translations drains (removes) finished records from the same Vec every frame. After a drain shifts the list, a stale index write either (a) lands out of bounds and is silently dropped, leaving the record outcome=None forever so it is never drained and permanently consumes the 8-slot cap, blocking all future extension translations, or (b) overwrites a DIFFERENT request's record, delivering the wrong translation to the wrong plugin action.",
+      "reachability": "INTERNAL",
+      "exploitability": "MEDIUM",
+      "fix": "Records now carry a unique id (AtomicU64); the worker calls complete_pending(id, result) which locates the record by id. Stale ids are no-ops. Regression test complete_pending_targets_the_record_by_id_not_position covers drain-then-stale-complete and matching-id completion.",
+      "confidence": 0.95
+    },
+    {
+      "id": "BUG-2",
+      "severity": "LOW",
+      "category": "performance",
+      "stride": "N/A",
+      "cwe": "N/A",
+      "file": "crates/ui/src/local_translate.rs",
+      "lines": "auto_incoming",
+      "claim": "auto_incoming marks a message as auto-requested only when spawn_inline returns true. For skip-classified content (links/emoji/credentials) spawn_inline returns false, so every visible skipped message is re-classified on every frame for the whole session.",
+      "reachability": "INTERNAL",
+      "exploitability": "EASY",
+      "fix": "auto_incoming now marks skipped messages as requested too (an edit still clears the mark via clear_inline), so classification runs once per message.",
+      "confidence": 0.9
+    }
+  ],
+  "dismissed": [
+    {
+      "id": "BUG-3",
+      "severity": "Low",
+      "category": "logic",
+      "file": "crates/ui/src/local_translate.rs",
+      "claim": "queue_send returns SendOutcome::Busy for empty text, which reads oddly for future callers.",
+      "reason": "Unreachable in practice: the only caller guards !draft_text.trim().is_empty() before invoking. Noted as a comment-level concern, not a behavior bug."
+    },
+    {
+      "id": "BUG-4",
+      "severity": "Low",
+      "category": "logic",
+      "file": "crates/ui/src/local_translate.rs",
+      "claim": "Manual Skipped inline entries linger until dismissed or cap-evicted.",
+      "reason": "By design: the note explains why the button did nothing; auto-dismissing would recreate the dead-button confusion the note exists to fix."
+    }
+  ],
+  "dependencies": [],
+  "summary": {
+    "total_reported": 4,
+    "confirmed": 2,
+    "dismissed": 2,
+    "by_severity": { "CRITICAL": 0, "HIGH": 1, "MEDIUM": 0, "LOW": 1 },
+    "by_stride": { "N/A": 2 },
+    "by_category": { "concurrency": 1, "performance": 1 }
+  }
+}

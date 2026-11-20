@@ -32,10 +32,19 @@ pub(crate) struct ExtensionTranslation {
 }
 
 struct PendingTranslation {
+	/// Unique id: the worker thread reports by id, never by index, because
+	/// `take_finished_translations` drains (and shifts) the list below while
+	/// requests are still in flight.
+	id: u64,
 	plugin: String,
 	action: String,
 	target: String,
 	outcome: Option<Result<Translation, String>>,
+}
+
+fn next_pending_id() -> u64 {
+	static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+	NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
 }
 
 static PENDING: OnceLock<Mutex<Vec<PendingTranslation>>> = OnceLock::new();
@@ -73,6 +82,7 @@ pub(crate) fn spawn_extension_translation(
 			.lock()
 			.expect("local translate")
 			.push(PendingTranslation {
+				id: next_pending_id(),
 				plugin,
 				action,
 				target,
@@ -81,29 +91,32 @@ pub(crate) fn spawn_extension_translation(
 		ctx.request_repaint();
 		return;
 	}
+	let id = next_pending_id();
 	let record = PendingTranslation {
+		id,
 		plugin,
 		action,
 		target: target.clone(),
 		outcome: None,
 	};
-	let index = {
-		let mut list = pending().lock().expect("local translate");
-		list.push(record);
-		list.len() - 1
-	};
+	pending().lock().expect("local translate").push(record);
 	let authority = service_authority();
 	let body = request_body(&text, &target);
 	std::thread::spawn(move || {
 		let result = translate_at(&authority, "/translate", &body);
-		let repaint = ctx.clone();
-		if let Ok(mut list) = pending().lock()
-			&& let Some(record) = list.get_mut(index)
-		{
-			record.outcome = Some(result);
-		}
-		repaint.request_repaint();
+		complete_pending(id, result);
+		ctx.request_repaint();
 	});
+}
+
+/// Record a finished result by id. A stale id (its record already drained)
+/// is a no-op; this never touches another request's record.
+fn complete_pending(id: u64, result: Result<Translation, String>) {
+	if let Ok(mut list) = pending().lock()
+		&& let Some(record) = list.iter_mut().find(|record| record.id == id)
+	{
+		record.outcome = Some(result);
+	}
 }
 
 /// Drain every finished translation, dropping entries whose plugin vanished.
@@ -1025,7 +1038,11 @@ pub fn auto_incoming(ctx: &egui::Context, message_id: u64, text: &str, own: bool
 		}
 	}
 
-	if spawn_inline(ctx, message_id, text, &settings.incoming_target, true, None) {
+	// Skipped content (links/emoji/credentials) is silently dropped by
+	// spawn_inline; mark it requested anyway so it is not reclassified on
+	// every frame. An edit clears the mark via clear_inline.
+	let skipped = skip_kind(text).is_some();
+	if skipped || spawn_inline(ctx, message_id, text, &settings.incoming_target, true, None) {
 		auto_requested()
 			.lock()
 			.expect("local translate")
@@ -1618,6 +1635,54 @@ mod tests {
 			err.contains("credential"),
 			"reason should mention credentials: {err}"
 		);
+		pending().lock().expect("local translate").clear();
+	}
+	#[test]
+	fn complete_pending_targets_the_record_by_id_not_position() {
+		let _guard = TEST_LOCK
+			.lock()
+			.unwrap_or_else(|poisoned| poisoned.into_inner());
+		{
+			let mut list = pending().lock().expect("local translate");
+			list.clear();
+			list.push(PendingTranslation {
+				id: 41,
+				plugin: "p".into(),
+				action: "a".into(),
+				target: "en".into(),
+				outcome: None,
+			});
+			list.push(PendingTranslation {
+				id: 42,
+				plugin: "p".into(),
+				action: "a".into(),
+				target: "en".into(),
+				outcome: None,
+			});
+			// The first record drains while the second is still in flight.
+			list.remove(0);
+		}
+		// A stale completion for the drained record must be a no-op and must
+		// never write into the surviving record (the old index-based write
+		// delivered translations to the wrong request here).
+		complete_pending(41, Err("gone".into()));
+		{
+			let list = pending().lock().expect("local translate");
+			assert!(
+				list[0].outcome.is_none(),
+				"stale completion must not touch the survivor"
+			);
+		}
+		complete_pending(
+			42,
+			Ok(Translation {
+				text: "ok".into(),
+				detected_language: None,
+			}),
+		);
+		let list = pending().lock().expect("local translate");
+		assert!(list[0].outcome.is_some(), "matching id must be completed");
+		drop(list);
 		pending().lock().expect("local translate").clear();
 	}
 }

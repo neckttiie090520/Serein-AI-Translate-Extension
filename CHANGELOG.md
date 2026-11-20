@@ -7,6 +7,14 @@ in that repository; this file covers the translation layer and fork-specific wor
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions
 are fork milestones, not upstream releases.
 
+## [0.3.2] - 2026-11-20
+
+### Fixed
+
+- Extension translation requests now report results by unique id instead of list position; a finished request draining while another was still in flight could previously hang the second request forever (silently consuming a pending slot) or deliver its translation to the wrong plugin action.
+- Auto-translated incoming messages that are skipped (links, emoji, credentials) are no longer re-classified on every rendered frame.
+
+
 ## [0.3.1] - 2026-11-20
 
 ### Fixed
